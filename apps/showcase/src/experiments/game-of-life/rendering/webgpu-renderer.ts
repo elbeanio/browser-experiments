@@ -272,9 +272,14 @@ export class GameOfLifeRenderer {
 
     // Scale 0/1 values to 0/255 for r8unorm texture
     // r8unorm stores values as 0.0 to 1.0, where 255 becomes 1.0
+    // Flip Y coordinate: texture has (0,0) at bottom-left, but grid has row 0 at top
     const scaledGrid = new Uint8Array(grid.length);
-    for (let i = 0; i < grid.length; i++) {
-      scaledGrid[i] = grid[i] * 255;
+    for (let y = 0; y < this.height; y++) {
+      const srcRow = y * this.width;
+      const dstRow = (this.height - 1 - y) * this.width; // Flip vertically
+      for (let x = 0; x < this.width; x++) {
+        scaledGrid[dstRow + x] = grid[srcRow + x] * 255;
+      }
     }
 
     // Write grid data to texture
