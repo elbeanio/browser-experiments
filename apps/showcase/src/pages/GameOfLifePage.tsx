@@ -189,14 +189,7 @@ const GameOfLifePage = () => {
       updateStats(game);
     }
   };
-  const handleRandomize = () => {
-    if (game && renderer) {
-      game.randomize(0.3);
-      renderer.updateGrid(game.getState().grid);
-      renderer.render();
-      updateStats(game);
-    }
-  };
+
 
 
   const handleGridSizeChange = (newSize: number) => {
@@ -463,7 +456,7 @@ const GameOfLifePage = () => {
                 theme,
               }}
               onBenchmarkComplete={(results) => {
-                console.log('Benchmark completed:', results);
+                console.warn('Benchmark completed:', results);
               }}
             />
           </div>

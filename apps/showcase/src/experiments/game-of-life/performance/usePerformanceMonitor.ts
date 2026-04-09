@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+interface MemoryInfo {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
 export interface PerformanceMetrics {
   fps: number;
   frameTime: number; // ms
@@ -122,10 +128,12 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
 
     // Try to get memory info from performance.memory (Chrome/Edge only)
     if ('memory' in performance) {
-      const memory = (performance as any).memory;
-      metrics.memoryUsed = Math.round(memory.usedJSHeapSize / (1024 * 1024) * 100) / 100; // MB
-      metrics.memoryTotal = Math.round(memory.totalJSHeapSize / (1024 * 1024) * 100) / 100; // MB
-      metrics.memoryLimit = Math.round(memory.jsHeapSizeLimit / (1024 * 1024) * 100) / 100; // MB
+      const memory = (performance as Performance & { memory?: MemoryInfo }).memory;
+      if (memory) {
+        metrics.memoryUsed = Math.round(memory.usedJSHeapSize / (1024 * 1024) * 100) / 100; // MB
+        metrics.memoryTotal = Math.round(memory.totalJSHeapSize / (1024 * 1024) * 100) / 100; // MB
+        metrics.memoryLimit = Math.round(memory.jsHeapSizeLimit / (1024 * 1024) * 100) / 100; // MB
+      }
       
       if (metrics.memoryTotal && metrics.memoryUsed) {
         metrics.memoryUsage = Math.round((metrics.memoryUsed / metrics.memoryTotal) * 1000) / 10; // percentage
@@ -320,16 +328,16 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
             frameTimeMin: Infinity,
             frameTimeMax: 0,
             frameTimeAvg: 0,
-            memoryUsage: 0,
-            memoryTotal: 0,
-            memoryUsed: 0,
-            memoryLimit: 0,
-            heapSize: 0,
-            heapUsed: 0,
-            heapLimit: 0,
+            memoryUsage: null,
+            memoryTotal: null,
+            memoryUsed: null,
+            memoryLimit: null,
+            heapSize: null,
+            heapUsed: null,
+            heapLimit: null,
             isPerformanceWarning: false,
             performanceScore: 0,
-          } as any);
+          });
           
           const count = benchmarkMetrics.length;
           const result: PerformanceMetrics = {
