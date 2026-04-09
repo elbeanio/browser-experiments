@@ -60,16 +60,18 @@ echo ""
 echo "=== Checking staged changes for secret patterns ==="
 echo ""
 
-check_pattern "GitHub tokens" "gh[pousr]_[A-Za-z0-9_]{36}" || FOUND_ISSUES=1
-check_pattern "GitHub PAT" "github_pat_[A-Za-z0-9_]{22}_[A-Za-z0-9_]{59}" || FOUND_ISSUES=1
-check_pattern "AWS keys" "AKIA[0-9A-Z]{16}" || FOUND_ISSUES=1
-check_pattern "Private key markers" "-----BEGIN (RSA |DSA |EC |OPENSSH )?PRIVATE KEY" || FOUND_ISSUES=1
-check_pattern "JWT tokens" "eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*" || FOUND_ISSUES=1
+# Simple patterns that work with git diff -G
+check_pattern "GitHub tokens" "gh[pousr]_" || FOUND_ISSUES=1
+check_pattern "GitHub PAT" "github_pat_" || FOUND_ISSUES=1
+check_pattern "AWS keys" "AKIA[0-9A-Z]" || FOUND_ISSUES=1
+check_pattern "Private key markers" "-----BEGIN.*PRIVATE KEY" || FOUND_ISSUES=1
+check_pattern "JWT tokens" "eyJ" || FOUND_ISSUES=1
 
-# Check for generic secret patterns (case insensitive, whole word)
-check_pattern "password assignments" "(?i)(password|passwd|pwd)\s*[=:]\s*['\"][^'\"]{4,}['\"]" || FOUND_ISSUES=1
-check_pattern "secret assignments" "(?i)(secret|token|key)\s*[=:]\s*['\"][^'\"]{4,}['\"]" || FOUND_ISSUES=1
-check_pattern "API key assignments" "(?i)(api[_-]?key|apikey)\s*[=:]\s*['\"][^'\"]{4,}['\"]" || FOUND_ISSUES=1
+# Check for generic secret patterns
+check_pattern "password assignments" "password.*=.*['\"]" || FOUND_ISSUES=1
+check_pattern "secret assignments" "secret.*=.*['\"]" || FOUND_ISSUES=1
+check_pattern "API key assignments" "api_key.*=.*['\"]" || FOUND_ISSUES=1
+check_pattern "access token assignments" "access_token.*=.*['\"]" || FOUND_ISSUES=1
 
 # Check for sensitive files
 echo ""
