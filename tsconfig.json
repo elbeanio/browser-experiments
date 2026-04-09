@@ -16,13 +16,13 @@
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["vite/client", "@webgpu/types"],
+    "types": ["vite/client", "@webgpu/types", "@testing-library/jest-dom"],
     "baseUrl": ".",
     "paths": {
       "@browser-experiments/core/*": ["packages/core/src/*"],
       "@browser-experiments/ui/*": ["packages/ui/src/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", "vitest.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

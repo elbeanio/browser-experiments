@@ -8,10 +8,13 @@ import pluginReact from 'eslint-plugin-react';
 export default [
   {
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/*.config.*'],
     languageOptions: {
       globals: {
         ...globals.browser,
         ...globals.node,
+        // Vitest globals
+        ...globals.jest,
         // WebGPU globals
         GPUDevice: 'readonly',
         GPUAdapter: 'readonly',
@@ -28,6 +31,17 @@ export default [
         GPUBufferUsageFlags: 'readonly',
         GPUTextureUsageFlags: 'readonly',
         BufferSource: 'readonly',
+        // Test globals
+        vi: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        FrameRequestCallback: 'readonly',
       },
       parser: tsParser,
       parserOptions: {

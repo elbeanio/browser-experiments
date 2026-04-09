@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GameOfLife } from '../experiments/game-of-life/simulation/game-of-life';
 import { GameOfLifeRenderer } from '../experiments/game-of-life/rendering/webgpu-renderer';
@@ -85,7 +85,6 @@ const GameOfLifePage = () => {
         updateStats(newGame);
 
         setIsInitialized(true);
-        console.log('Game of Life initialized successfully');
       } catch (err) {
         console.error('Failed to initialize Game of Life:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -269,7 +268,7 @@ const GameOfLifePage = () => {
       <div className="container">
         <div className="experiment-detail">
           <div className="experiment-detail-header">
-            <h1>Conway's Game of Life</h1>
+            <h1>Conway&apos;s Game of Life</h1>
             <p className="hero-subtitle">WebGPU Experiment - Naive Implementation</p>
           </div>
           
@@ -305,7 +304,7 @@ const GameOfLifePage = () => {
     <div className="container">
       <div className="experiment-detail">
         <div className="experiment-detail-header">
-          <h1>Conway's Game of Life</h1>
+          <h1>Conway&apos;s Game of Life</h1>
           <p className="hero-subtitle">WebGPU Experiment - Naive Implementation</p>
           
           <div className="experiment-meta">
@@ -506,7 +505,7 @@ const GameOfLifePage = () => {
           <section className="experiment-section">
             <h2>About This Experiment</h2>
             <p>
-              This is a naive implementation of Conway's Game of Life using WebGPU for rendering.
+               This is a naive implementation of Conway&apos;s Game of Life using WebGPU for rendering.
               The simulation runs on the CPU while rendering uses WebGPU textures and shaders.
             </p>
             <p>

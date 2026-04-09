@@ -235,7 +235,6 @@ export class GameOfLifeRenderer {
       });
 
       this.isInitialized = true;
-      console.log('WebGPU renderer initialized successfully');
     } catch (error) {
       console.error('Failed to initialize WebGPU renderer:', error);
       throw error;

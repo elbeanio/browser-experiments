@@ -88,9 +88,12 @@ export class GameOfLife {
    * Set a specific cell state
    */
   setCell(x: number, y: number, alive: boolean): void {
-    const { width, height } = this.state;
+    const { width, height, wrapEdges } = this.state;
     
-    if (x < 0 || x >= width || y < 0 || y >= height) {
+    if (wrapEdges) {
+      x = (x + width) % width;
+      y = (y + height) % height;
+    } else if (x < 0 || x >= width || y < 0 || y >= height) {
       return;
     }
 
@@ -103,9 +106,12 @@ export class GameOfLife {
    * Toggle a cell state
    */
   toggleCell(x: number, y: number): void {
-    const { width, height } = this.state;
+    const { width, height, wrapEdges } = this.state;
     
-    if (x < 0 || x >= width || y < 0 || y >= height) {
+    if (wrapEdges) {
+      x = (x + width) % width;
+      y = (y + height) % height;
+    } else if (x < 0 || x >= width || y < 0 || y >= height) {
       return;
     }
 

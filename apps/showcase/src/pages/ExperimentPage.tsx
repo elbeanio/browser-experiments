@@ -10,7 +10,7 @@ const ExperimentPage: React.FC = () => {
     return (
       <div className="container text-center mt-4">
         <h1>Experiment Not Found</h1>
-        <p className="text-muted mt-2">The experiment you're looking for doesn't exist.</p>
+        <p className="text-muted mt-2">The experiment you&apos;re looking for doesn&apos;t exist.</p>
         <Link to="/" className="mt-3 inline-block">Return to Home</Link>
       </div>
     );
