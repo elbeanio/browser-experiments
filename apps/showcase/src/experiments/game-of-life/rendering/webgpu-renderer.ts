@@ -24,6 +24,7 @@ export class GameOfLifeRenderer {
   private cellSize: number;
   private aliveColor: [number, number, number, number];
   private deadColor: [number, number, number, number];
+  private disableTiling = false;
 
   private isInitialized = false;
   private animationFrameId: number | null = null;
@@ -160,7 +161,7 @@ export class GameOfLifeRenderer {
 
       // Create uniform buffer for colors and grid parameters
       // alive_color: vec4f (4 floats)
-      // dead_color: vec4f (4 floats)  
+      // dead_color: vec4f (4 floats)
       // cell_size: f32 (1 float)
       // grid_width: f32 (1 float)
       // grid_height: f32 (1 float)
@@ -267,7 +268,9 @@ export class GameOfLifeRenderer {
     }
 
     if (grid.length !== this.width * this.height) {
-      throw new Error(`Grid size mismatch: expected ${this.width * this.height}, got ${grid.length}`);
+      throw new Error(
+        `Grid size mismatch: expected ${this.width * this.height}, got ${grid.length}`
+      );
     }
 
     // Scale 0/1 values to 0/255 for r8unorm texture
@@ -294,7 +297,10 @@ export class GameOfLifeRenderer {
   /**
    * Update colors
    */
-  updateColors(aliveColor: [number, number, number, number], deadColor: [number, number, number, number]): void {
+  updateColors(
+    aliveColor: [number, number, number, number],
+    deadColor: [number, number, number, number]
+  ): void {
     if (!this.isInitialized || !this.device) {
       throw new Error('Renderer not initialized');
     }
@@ -411,13 +417,19 @@ export class GameOfLifeRenderer {
     // UV scale = 512 / gridPixelSize (INVERSE relationship!)
     // Larger cell size → smaller uv_scale → texture appears larger (zoom IN)
     // Smaller cell size → larger uv_scale → texture appears smaller, tiles (zoom OUT)
-    const uvScaleX = 512 / (this.width * this.cellSize);
-    const uvScaleY = 512 / (this.height * this.cellSize);
+    let uvScaleX = 512 / (this.width * this.cellSize);
+    let uvScaleY = 512 / (this.height * this.cellSize);
+
+    // If tiling is disabled, clamp UV scale to max 1.0 (no tiling)
+    if (this.disableTiling) {
+      uvScaleX = Math.min(uvScaleX, 1.0);
+      uvScaleY = Math.min(uvScaleY, 1.0);
+    }
 
     const uniformData = new Float32Array([
       // alive_color: vec4f
       ...this.aliveColor,
-      // dead_color: vec4f  
+      // dead_color: vec4f
       ...this.deadColor,
       // uv_scale_x: f32, uv_scale_y: f32
       uvScaleX,
@@ -440,6 +452,15 @@ export class GameOfLifeRenderer {
     }
 
     this.cellSize = cellSize;
+    this.updateUniformBuffer();
+  }
+
+  /**
+   * Enable or disable texture tiling
+   * When disabled, UV scale is clamped to max 1.0 (no tiling)
+   */
+  setTilingEnabled(enabled: boolean): void {
+    this.disableTiling = !enabled;
     this.updateUniformBuffer();
   }
 }

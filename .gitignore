@@ -61,3 +61,4 @@ temp/
 .beads/.beads-credential-key
 # Beads credentials
 .beads/.beads-credential-key
+.screenshots/
