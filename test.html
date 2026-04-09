@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test WebGPU</title>
+</head>
+<body>
+    <h1>Testing WebGPU Support</h1>
+    <canvas id="testCanvas" width="400" height="400"></canvas>
+    <div id="status">Checking WebGPU support...</div>
+    
+    <script>
+        async function testWebGPU() {
+            const status = document.getElementById('status');
+            const canvas = document.getElementById('testCanvas');
+            
+            if (!navigator.gpu) {
+                status.textContent = 'WebGPU not supported in this browser';
+                status.style.color = 'red';
+                return;
+            }
+            
+            try {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    status.textContent = 'Failed to get GPU adapter';
+                    status.style.color = 'red';
+                    return;
+                }
+                
+                const device = await adapter.requestDevice();
+                if (!device) {
+                    status.textContent = 'Failed to get GPU device';
+                    status.style.color = 'red';
+                    return;
+                }
+                
+                const context = canvas.getContext('webgpu');
+                if (!context) {
+                    status.textContent = 'Failed to get WebGPU canvas context';
+                    status.style.color = 'red';
+                    return;
+                }
+                
+                const format = navigator.gpu.getPreferredCanvasFormat();
+                context.configure({
+                    device,
+                    format,
+                });
+                
+                status.textContent = 'WebGPU is working!';
+                status.style.color = 'green';
+                
+                // Draw a simple color
+                const commandEncoder = device.createCommandEncoder();
+                const textureView = context.getCurrentTexture().createView();
+                const renderPass = commandEncoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: textureView,
+                        clearValue: { r: 0.2, g: 0.4, b: 0.8, a: 1.0 },
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    }],
+                });
+                renderPass.end();
+                device.queue.submit([commandEncoder.finish()]);
+                
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+                status.style.color = 'red';
+                console.error(error);
+            }
+        }
+        
+        testWebGPU();
+    </script>
+</body>
+</html>
