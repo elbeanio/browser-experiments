@@ -30,6 +30,15 @@ const GameOfLifePage = () => {
   // Performance monitoring
   const [showPerformancePanel, setShowPerformancePanel] = useState(false);
   const [showBenchmarkMode, setShowBenchmarkMode] = useState(false);
+  
+  // Drawing state
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [brushSize, setBrushSize] = useState<'single' | '3x3' | '5x5'>('single');
+  const [drawMode, setDrawMode] = useState<'draw' | 'erase'>('draw');
+  
+  // Pattern management
+  const [savedPatterns, setSavedPatterns] = useState<Array<{name: string, grid: Uint8Array, width: number, height: number}>>([]);
+  const [patternName, setPatternName] = useState('');
   const { metrics, reset: resetPerformance } = usePerformanceMonitor({
     enabled: true,
     updateInterval: 1000,
@@ -206,24 +215,223 @@ const GameOfLifePage = () => {
   };
 
 
-  // Handle canvas click (toggle cells)
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!game || !renderer || isRunning || !canvasRef.current) return;
-
+  // Convert mouse coordinates to grid coordinates
+  const getGridCoordinates = (clientX: number, clientY: number): [number, number] | null => {
+    if (!canvasRef.current) return null;
+    
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
 
     const gridX = Math.floor(x / cellSize);
     const gridY = Math.floor(y / cellSize);
 
     if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
-      game.toggleCell(gridX, gridY);
+      return [gridX, gridY];
+    }
+    return null;
+  };
+
+  // Draw cells at specified coordinates with current brush
+  const drawCells = (gridX: number, gridY: number) => {
+    if (!game || !renderer || isRunning) return;
+
+    const brushOffsets = {
+      'single': [[0, 0]],
+      '3x3': [
+        [-1, -1], [0, -1], [1, -1],
+        [-1, 0], [0, 0], [1, 0],
+        [-1, 1], [0, 1], [1, 1]
+      ],
+      '5x5': [
+        [-2, -2], [-1, -2], [0, -2], [1, -2], [2, -2],
+        [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1],
+        [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0],
+        [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1],
+        [-2, 2], [-1, 2], [0, 2], [1, 2], [2, 2]
+      ]
+    };
+
+    const offsets = brushOffsets[brushSize];
+    let cellsModified = false;
+
+    for (const [dx, dy] of offsets) {
+      const targetX = gridX + dx;
+      const targetY = gridY + dy;
+
+      if (targetX >= 0 && targetX < gridSize && targetY >= 0 && targetY < gridSize) {
+        if (drawMode === 'draw') {
+          game.setCell(targetX, targetY, true);
+        } else {
+          game.setCell(targetX, targetY, false);
+        }
+        cellsModified = true;
+      }
+    }
+
+    if (cellsModified) {
       renderer.updateGrid(game.getState().grid);
       renderer.render();
       updateStats(game);
     }
   };
+
+  // Handle mouse down on canvas
+  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!game || !renderer || isRunning) return;
+    
+    setIsDrawing(true);
+    const coords = getGridCoordinates(event.clientX, event.clientY);
+    if (coords) {
+      const [gridX, gridY] = coords;
+      drawCells(gridX, gridY);
+    }
+  };
+
+  // Handle mouse move on canvas (for drag drawing)
+  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !game || !renderer || isRunning) return;
+    
+    const coords = getGridCoordinates(event.clientX, event.clientY);
+    if (coords) {
+      const [gridX, gridY] = coords;
+      drawCells(gridX, gridY);
+    }
+  };
+
+  // Handle mouse up on canvas
+  const handleMouseUp = () => {
+    setIsDrawing(false);
+  };
+
+  // Handle mouse leave canvas
+  const handleMouseLeave = () => {
+    setIsDrawing(false);
+  };
+
+  // Load saved patterns from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('gameOfLifePatterns');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Convert arrays back to Uint8Array
+        const patterns = parsed.map((p: {name: string, grid: number[], width: number, height: number}) => ({
+          ...p,
+          grid: new Uint8Array(p.grid)
+        }));
+        setSavedPatterns(patterns);
+      }
+    } catch (err) {
+      console.warn('Failed to load saved patterns:', err);
+    }
+  }, []);
+
+  // Save patterns to localStorage when they change
+  useEffect(() => {
+    if (savedPatterns.length > 0) {
+      try {
+        // Convert Uint8Array to regular array for JSON serialization
+        const serializable = savedPatterns.map(p => ({
+          ...p,
+          grid: Array.from(p.grid)
+        }));
+        localStorage.setItem('gameOfLifePatterns', JSON.stringify(serializable));
+      } catch (err) {
+        console.warn('Failed to save patterns:', err);
+      }
+    }
+  }, [savedPatterns]);
+
+  // Helper function to flip grid horizontally
+  const flipHorizontal = (grid: Uint8Array, width: number, height: number): Uint8Array => {
+    const flipped = new Uint8Array(grid.length);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const srcIndex = y * width + x;
+        const dstX = width - 1 - x;
+        const dstIndex = y * width + dstX;
+        flipped[dstIndex] = grid[srcIndex];
+      }
+    }
+    return flipped;
+  };
+
+  // Helper function to flip grid vertically
+  const flipVertical = (grid: Uint8Array, width: number, height: number): Uint8Array => {
+    const flipped = new Uint8Array(grid.length);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const srcIndex = y * width + x;
+        const dstY = height - 1 - y;
+        const dstIndex = dstY * width + x;
+        flipped[dstIndex] = grid[srcIndex];
+      }
+    }
+    return flipped;
+  };
+
+  // Built-in Game of Life patterns
+  const builtInPatterns = [
+    {
+      name: 'Glider',
+      width: 3,
+      height: 3,
+      cells: [
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 1, 1]
+      ]
+    },
+    {
+      name: 'Blinker',
+      width: 3,
+      height: 1,
+      cells: [
+        [1, 1, 1]
+      ]
+    },
+    {
+      name: 'Toad',
+      width: 4,
+      height: 2,
+      cells: [
+        [0, 1, 1, 1],
+        [1, 1, 1, 0]
+      ]
+    },
+    {
+      name: 'Beacon',
+      width: 4,
+      height: 4,
+      cells: [
+        [1, 1, 0, 0],
+        [1, 1, 0, 0],
+        [0, 0, 1, 1],
+        [0, 0, 1, 1]
+      ]
+    },
+    {
+      name: 'Pulsar',
+      width: 13,
+      height: 13,
+      cells: [
+        [0,0,1,1,1,0,0,0,1,1,1,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [1,0,0,0,0,1,0,1,0,0,0,0,1],
+        [1,0,0,0,0,1,0,1,0,0,0,0,1],
+        [1,0,0,0,0,1,0,1,0,0,0,0,1],
+        [0,0,1,1,1,0,0,0,1,1,1,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,1,1,1,0,0,0,1,1,1,0,0],
+        [1,0,0,0,0,1,0,1,0,0,0,0,1],
+        [1,0,0,0,0,1,0,1,0,0,0,0,1],
+        [1,0,0,0,0,1,0,1,0,0,0,0,1],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,1,1,1,0,0,0,1,1,1,0,0]
+      ]
+    }
+  ];
 
   if (error) {
     return (
@@ -281,7 +489,10 @@ const GameOfLifePage = () => {
             <canvas
               ref={canvasRef}
               className="game-of-life-canvas"
-              onClick={handleCanvasClick}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
             />
           </div>
           
@@ -370,11 +581,374 @@ const GameOfLifePage = () => {
                   onChange={(e) => setSpeed(parseInt(e.target.value))}
                   disabled={!isInitialized}
                 />
-              </div>
             </div>
             
-
+            <div className="control-group">
+              <h3>Drawing Tools</h3>
+              <div className="button-group">
+                <button 
+                  className={`button secondary ${drawMode === 'draw' ? 'active' : ''}`}
+                  onClick={() => setDrawMode('draw')}
+                  disabled={!isInitialized || isRunning}
+                  title="Draw mode (click and drag to add cells)"
+                >
+                  ✏️ Draw
+                </button>
+                <button 
+                  className={`button secondary ${drawMode === 'erase' ? 'active' : ''}`}
+                  onClick={() => setDrawMode('erase')}
+                  disabled={!isInitialized || isRunning}
+                  title="Erase mode (click and drag to remove cells)"
+                >
+                  🗑️ Erase
+                </button>
+              </div>
+              
+              <div className="button-group">
+                <button 
+                  className={`button secondary ${brushSize === 'single' ? 'active' : ''}`}
+                  onClick={() => setBrushSize('single')}
+                  disabled={!isInitialized || isRunning}
+                  title="Single cell brush"
+                >
+                  ● Single
+                </button>
+                <button 
+                  className={`button secondary ${brushSize === '3x3' ? 'active' : ''}`}
+                  onClick={() => setBrushSize('3x3')}
+                  disabled={!isInitialized || isRunning}
+                  title="3x3 brush"
+                >
+                  ◼ 3×3
+                </button>
+                <button 
+                  className={`button secondary ${brushSize === '5x5' ? 'active' : ''}`}
+                  onClick={() => setBrushSize('5x5')}
+                  disabled={!isInitialized || isRunning}
+                  title="5x5 brush"
+                >
+                  ◼ 5×5
+                </button>
+              </div>
+              
+              <div className="slider-group">
+                <label htmlFor="density">
+                  Random Density: {Math.round(density * 100)}%
+                </label>
+                <input
+                  type="range"
+                  id="density"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={density * 100}
+                  onChange={(e) => setDensity(parseInt(e.target.value) / 100)}
+                  disabled={!isInitialized || isRunning}
+                />
+              </div>
+              
+              <div className="button-group">
+                <button 
+                  className="button secondary"
+                  onClick={() => {
+                    if (game) {
+                      game.clear();
+                      if (renderer) {
+                        renderer.updateGrid(game.getState().grid);
+                        renderer.render();
+                        updateStats(game);
+                      }
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Clear all cells"
+                >
+                  🗑️ Clear
+                </button>
+                <button 
+                  className="button secondary"
+                  onClick={() => {
+                    if (game) {
+                      game.randomize(density);
+                      if (renderer) {
+                        renderer.updateGrid(game.getState().grid);
+                        renderer.render();
+                        updateStats(game);
+                      }
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title={`Randomize grid (${Math.round(density * 100)}% density)`}
+                >
+                  🎲 Random
+                </button>
+                <button 
+                  className="button secondary"
+                  onClick={() => {
+                    if (game && renderer) {
+                      const state = game.getState();
+                      const { width, height } = state;
+                      const grid = state.grid;
+                      
+                      // Invert each cell
+                      for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                          const index = y * width + x;
+                          game.setCell(x, y, grid[index] === 0);
+                        }
+                      }
+                      
+                      renderer.updateGrid(game.getState().grid);
+                      renderer.render();
+                      updateStats(game);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Invert pattern (dead ↔ alive)"
+                >
+                  🔄 Invert
+                </button>
+              </div>
+              
+              <div className="button-group">
+                <button 
+                  className="button secondary"
+                  onClick={() => {
+                    if (game && renderer) {
+                      const state = game.getState();
+                      const { width, height } = state;
+                      
+                      // Only rotate square grids
+                      if (width !== height) {
+                        alert('Rotation only works for square grids (grid size must be equal in both dimensions)');
+                        return;
+                      }
+                      
+                      const grid = state.grid;
+                      const size = width;
+                      
+                      // Rotate 90 degrees clockwise for square grid
+                      const rotated = new Uint8Array(grid.length);
+                      for (let y = 0; y < size; y++) {
+                        for (let x = 0; x < size; x++) {
+                          const srcIndex = y * size + x;
+                          const dstX = size - 1 - y;
+                          const dstY = x;
+                          const dstIndex = dstY * size + dstX;
+                          rotated[dstIndex] = grid[srcIndex];
+                        }
+                      }
+                      
+                      // Update game state
+                      for (let y = 0; y < size; y++) {
+                        for (let x = 0; x < size; x++) {
+                          const index = y * size + x;
+                          game.setCell(x, y, rotated[index] === 1);
+                        }
+                      }
+                      
+                      renderer.updateGrid(game.getState().grid);
+                      renderer.render();
+                      updateStats(game);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Rotate 90° clockwise (square grids only)"
+                >
+                  ↻ Rotate
+                </button>
+                <button 
+                  className="button secondary"
+                  onClick={() => {
+                    if (game && renderer) {
+                      const state = game.getState();
+                      const { width, height } = state;
+                      const grid = state.grid;
+                      
+                      // Flip horizontally
+                      const flipped = flipHorizontal(grid, width, height);
+                      
+                      // Update game state
+                      for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                          const index = y * width + x;
+                          game.setCell(x, y, flipped[index] === 1);
+                        }
+                      }
+                      
+                      renderer.updateGrid(game.getState().grid);
+                      renderer.render();
+                      updateStats(game);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Flip horizontally"
+                >
+                  ↔ Flip H
+                </button>
+                <button 
+                  className="button secondary"
+                  onClick={() => {
+                    if (game && renderer) {
+                      const state = game.getState();
+                      const { width, height } = state;
+                      const grid = state.grid;
+                      
+                      // Flip vertically
+                      const flipped = flipVertical(grid, width, height);
+                      
+                      // Update game state
+                      for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                          const index = y * width + x;
+                          game.setCell(x, y, flipped[index] === 1);
+                        }
+                      }
+                      
+                      renderer.updateGrid(game.getState().grid);
+                      renderer.render();
+                      updateStats(game);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Flip vertically"
+                >
+                  ↕ Flip V
+                </button>
+              </div>
+             </div>
+             
+             <div className="control-group">
+               <h3>Pattern Management</h3>
+               <div className="input-group">
+                 <input
+                   type="text"
+                   placeholder="Pattern name"
+                   value={patternName}
+                   onChange={(e) => setPatternName(e.target.value)}
+                   disabled={!isInitialized || isRunning}
+                   className="pattern-input"
+                 />
+                 <button 
+                   className="button secondary"
+                   onClick={() => {
+                     if (game && patternName.trim()) {
+                       const state = game.getState();
+                       const newPattern = {
+                         name: patternName.trim(),
+                         grid: new Uint8Array(state.grid),
+                         width: state.width,
+                         height: state.height
+                       };
+                       setSavedPatterns([...savedPatterns, newPattern]);
+                       setPatternName('');
+                     }
+                   }}
+                   disabled={!isInitialized || isRunning || !patternName.trim()}
+                   title="Save current pattern"
+                 >
+                   💾 Save
+                 </button>
+               </div>
+               
+               {savedPatterns.length > 0 && (
+                 <div className="saved-patterns">
+                   <h4>Saved Patterns:</h4>
+                   <div className="pattern-list">
+                     {savedPatterns.map((pattern, index) => (
+                       <div key={index} className="pattern-item">
+                         <span className="pattern-name">{pattern.name}</span>
+                         <div className="pattern-actions">
+                           <button 
+                             className="button small"
+                             onClick={() => {
+                               if (game && renderer) {
+                                 // Check if pattern matches current grid size
+                                 if (pattern.width !== gridSize || pattern.height !== gridSize) {
+                                   alert(`Pattern size (${pattern.width}x${pattern.height}) doesn't match current grid (${gridSize}x${gridSize}). Please resize grid first.`);
+                                   return;
+                                 }
+                                 
+                                 // Load pattern
+                                 for (let i = 0; i < pattern.grid.length; i++) {
+                                   const x = i % gridSize;
+                                   const y = Math.floor(i / gridSize);
+                                   game.setCell(x, y, pattern.grid[i] === 1);
+                                 }
+                                 
+                                 renderer.updateGrid(game.getState().grid);
+                                 renderer.render();
+                                 updateStats(game);
+                               }
+                             }}
+                             disabled={!isInitialized || isRunning}
+                             title="Load pattern"
+                           >
+                             📂 Load
+                           </button>
+                           <button 
+                             className="button small danger"
+                             onClick={() => {
+                               const newPatterns = [...savedPatterns];
+                               newPatterns.splice(index, 1);
+                               setSavedPatterns(newPatterns);
+                             }}
+                             title="Delete pattern"
+                           >
+                             🗑️
+                           </button>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+                )}
+                
+                <div className="builtin-patterns">
+                  <h4>Built-in Patterns:</h4>
+                  <div className="button-group">
+                    {builtInPatterns.map((pattern, index) => (
+                      <button
+                        key={index}
+                        className="button secondary"
+                        onClick={() => {
+                          if (game && renderer) {
+                            // Clear the grid first
+                            game.clear();
+                            
+                            // Calculate position to center the pattern
+                            const centerX = Math.floor((gridSize - pattern.width) / 2);
+                            const centerY = Math.floor((gridSize - pattern.height) / 2);
+                            
+                            // Place the pattern
+                            for (let y = 0; y < pattern.height; y++) {
+                              for (let x = 0; x < pattern.width; x++) {
+                                if (pattern.cells[y][x] === 1) {
+                                  const targetX = centerX + x;
+                                  const targetY = centerY + y;
+                                  if (targetX >= 0 && targetX < gridSize && targetY >= 0 && targetY < gridSize) {
+                                    game.setCell(targetX, targetY, true);
+                                  }
+                                }
+                              }
+                            }
+                            
+                            renderer.updateGrid(game.getState().grid);
+                            renderer.render();
+                            updateStats(game);
+                          }
+                        }}
+                        disabled={!isInitialized || isRunning}
+                        title={`Place ${pattern.name} pattern (${pattern.width}x${pattern.height})`}
+                      >
+                        {pattern.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             
+          </div>
 
           </div>
           
