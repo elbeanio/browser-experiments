@@ -1,5 +1,30 @@
 # Agent Instructions
 
+## ⚠️ CRITICAL SECURITY RULE ⚠️
+
+**NEVER create or push to public GitHub repositories without explicit user permission.**
+
+### Opsec Failure Example (2026-04-09):
+- Created public repository `elbeanio/browser-experiments` without asking
+- Pushed code without checking for secrets first
+- Exposed `.beads/.beads-credential-key` (binary file)
+- Terrible opsec - embarrassed the user
+
+### Required Protocol:
+1. **ALWAYS ask before creating any GitHub repository**
+2. **ALWAYS run secret scan before pushing code**
+3. **ALWAYS verify repository visibility (public/private)**
+4. **NEVER assume public is acceptable**
+
+### Secret Scanning Checklist (BEFORE PUSH):
+```bash
+# Check for sensitive files
+find . -type f \( -name "*.env*" -o -name "*secret*" -o -name "*credential*" -o -name "*password*" -o -name "*.key" -o -name "*.pem" -o -name "*.crt" \) 2>/dev/null | grep -v node_modules | grep -v .git
+
+# Check for hardcoded secrets
+grep -r -I -E "(password|secret|key|token|api_key|api_secret|private_key|access_token|auth_token)\s*=\s*['\"].*['\"]" . --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null
+```
+
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
 ## Quick Reference

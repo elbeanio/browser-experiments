@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Browser Experiments</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .test {
+            margin: 1rem 0;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .pass { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        code { background: #f8f9fa; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Browser Experiments Debug</h1>
+    
+    <div class="test" id="webgpu-test">
+        <h3>1. WebGPU Support</h3>
+        <p id="webgpu-result">Testing...</p>
+    </div>
+    
+    <div class="test" id="js-test">
+        <h3>2. JavaScript Console</h3>
+        <p>Open browser DevTools (F12) and check Console tab for errors</p>
+        <div id="console-output"></div>
+    </div>
+    
+    <div class="test" id="assets-test">
+        <h3>3. Asset Loading</h3>
+        <p id="assets-result">Testing...</p>
+    </div>
+    
+    <div class="test" id="site-test">
+        <h3>4. Site Test</h3>
+        <p><a href="https://elbeanio.github.io/browser-experiments/" target="_blank">Open main site</a></p>
+        <p><a href="https://elbeanio.github.io/browser-experiments/experiments/game-of-life" target="_blank">Open Game of Life directly</a></p>
+    </div>
+    
+    <div class="test">
+        <h3>5. Common Issues</h3>
+        <ul>
+            <li><strong>WebGPU requires:</strong> Chrome/Edge 113+, Firefox 121+, Safari 17.4+</li>
+            <li><strong>Secure context:</strong> HTTPS required (GitHub Pages provides this)</li>
+            <li><strong>Browser flags:</strong> Some browsers require enabling WebGPU via flags</li>
+            <li><strong>Ad blockers:</strong> May block WebGPU as "fingerprinting"</li>
+        </ul>
+    </div>
+
+    <script>
+        // Test WebGPU support
+        async function testWebGPU() {
+            const testDiv = document.getElementById('webgpu-test');
+            const resultEl = document.getElementById('webgpu-result');
+            
+            try {
+                if (!navigator.gpu) {
+                    resultEl.textContent = '❌ navigator.gpu not available';
+                    testDiv.className = 'test fail';
+                    return;
+                }
+                
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    resultEl.textContent = '❌ No WebGPU adapter available';
+                    testDiv.className = 'test fail';
+                    return;
+                }
+                
+                const device = await adapter.requestDevice();
+                resultEl.innerHTML = `✅ WebGPU supported!<br>
+                    <small>Adapter: ${adapter.name || 'Unknown'}</small>`;
+                testDiv.className = 'test pass';
+                
+                // Clean up
+                device.destroy();
+                
+            } catch (error) {
+                resultEl.textContent = `❌ WebGPU error: ${error.message}`;
+                testDiv.className = 'test fail';
+            }
+        }
+        
+        // Test asset loading
+        async function testAssets() {
+            const assets = [
+                'https://elbeanio.github.io/browser-experiments/assets/index-CJBv-NSO.css',
+                'https://elbeanio.github.io/browser-experiments/assets/index-DM3WHv1G.js',
+                'https://elbeanio.github.io/browser-experiments/index.html'
+            ];
+            
+            const results = [];
+            for (const url of assets) {
+                try {
+                    const response = await fetch(url, { method: 'HEAD' });
+                    results.push(`${response.ok ? '✅' : '❌'} ${url}: HTTP ${response.status}`);
+                } catch (error) {
+                    results.push(`❌ ${url}: ${error.message}`);
+                }
+            }
+            
+            document.getElementById('assets-result').innerHTML = results.join('<br>');
+            document.getElementById('assets-test').className = results.every(r => r.includes('✅')) 
+                ? 'test pass' 
+                : 'test warning';
+        }
+        
+        // Capture console errors
+        const originalError = console.error;
+        const consoleOutput = document.getElementById('console-output');
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'fail';
+            errorDiv.textContent = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+            consoleOutput.appendChild(errorDiv);
+        };
+        
+        // Run tests
+        testWebGPU();
+        testAssets();
+        
+        // Test the actual site
+        setTimeout(() => {
+            fetch('https://elbeanio.github.io/browser-experiments/')
+                .then(response => {
+                    if (!response.ok) {
+                        console.error(`Site fetch failed: HTTP ${response.status}`);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Site fetch error: ${error.message}`);
+                });
+        }, 1000);
+    </script>
+</body>
+</html>

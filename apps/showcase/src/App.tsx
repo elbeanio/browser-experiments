@@ -6,8 +6,11 @@ import GameOfLifePage from './pages/GameOfLifePage';
 import './App.css';
 
 function App() {
+  // GitHub Pages deployment base path
+  const basename = import.meta.env.PROD ? '/browser-experiments' : '/';
+  
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <div className="app">
         <Header />
         <main className="app-main">
