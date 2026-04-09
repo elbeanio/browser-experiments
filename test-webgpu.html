@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGPU Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #status { margin: 20px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        canvas { border: 1px solid #ccc; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>WebGPU Browser Test</h1>
+    
+    <div id="status">Checking WebGPU support...</div>
+    
+    <canvas id="canvas" width="256" height="256"></canvas>
+    
+    <div>
+        <button id="testButton">Test WebGPU Render</button>
+    </div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const canvas = document.getElementById('canvas');
+        const testButton = document.getElementById('testButton');
+        
+        // Check WebGPU support
+        function checkWebGPU() {
+            if (!navigator.gpu) {
+                status.innerHTML = '<div class="error">❌ WebGPU is not supported in this browser. Required: Chrome 113+, Edge 113+, Firefox 121+, Safari 17.4+</div>';
+                return false;
+            }
+            
+            status.innerHTML = '<div class="success">✅ WebGPU is supported in this browser!</div>';
+            return true;
+        }
+        
+        // Simple WebGPU test
+        async function testWebGPU() {
+            try {
+                status.innerHTML = '<div>Testing WebGPU initialization...</div>';
+                
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) {
+                    throw new Error('Failed to get GPU adapter');
+                }
+                
+                const device = await adapter.requestDevice();
+                if (!device) {
+                    throw new Error('Failed to get GPU device');
+                }
+                
+                const context = canvas.getContext('webgpu');
+                if (!context) {
+                    throw new Error('Failed to get WebGPU canvas context');
+                }
+                
+                const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+                context.configure({
+                    device,
+                    format: presentationFormat,
+                    alphaMode: 'premultiplied',
+                });
+                
+                // Create a simple red triangle
+                const shaderCode = `
+                    @vertex fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> @builtin(position) vec4f {
+                        var pos = array<vec2f, 3>(
+                            vec2f(0.0, 0.5),
+                            vec2f(-0.5, -0.5),
+                            vec2f(0.5, -0.5)
+                        );
+                        return vec4f(pos[vertexIndex], 0.0, 1.0);
+                    }
+                    
+                    @fragment fn fragmentMain() -> @location(0) vec4f {
+                        return vec4f(1.0, 0.0, 0.0, 1.0);
+                    }
+                `;
+                
+                const shaderModule = device.createShaderModule({ code: shaderCode });
+                
+                const pipeline = device.createRenderPipeline({
+                    layout: 'auto',
+                    vertex: { module: shaderModule, entryPoint: 'vertexMain' },
+                    fragment: {
+                        module: shaderModule,
+                        entryPoint: 'fragmentMain',
+                        targets: [{ format: presentationFormat }]
+                    },
+                    primitive: { topology: 'triangle-list' }
+                });
+                
+                const commandEncoder = device.createCommandEncoder();
+                const textureView = context.getCurrentTexture().createView();
+                const renderPass = commandEncoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: textureView,
+                        clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 },
+                        loadOp: 'clear',
+                        storeOp: 'store'
+                    }]
+                });
+                
+                renderPass.setPipeline(pipeline);
+                renderPass.draw(3);
+                renderPass.end();
+                
+                device.queue.submit([commandEncoder.finish()]);
+                
+                status.innerHTML = '<div class="success">✅ WebGPU test successful! Red triangle should be visible above.</div>';
+                
+            } catch (error) {
+                status.innerHTML = `<div class="error">❌ WebGPU test failed: ${error.message}</div>`;
+                console.error('WebGPU test error:', error);
+            }
+        }
+        
+        // Initialize
+        if (checkWebGPU()) {
+            testButton.addEventListener('click', testWebGPU);
+            testButton.disabled = false;
+        } else {
+            testButton.disabled = true;
+        }
+    </script>
+</body>
+</html>

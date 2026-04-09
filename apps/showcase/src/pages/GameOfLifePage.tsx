@@ -20,7 +20,8 @@ const GameOfLifePage = () => {
   const [gridSize, setGridSize] = useState(64);
   const [cellSize, setCellSize] = useState(4);
   const [speed, setSpeed] = useState(10);
-  const [theme, setTheme] = useState<'green' | 'blue' | 'purple'>('green');
+  // Simple black/white theme - remove color theme selection
+  const theme = 'simple' as const;
   
   // Stats
   const [generation, setGeneration] = useState(0);
@@ -44,20 +45,10 @@ const GameOfLifePage = () => {
   const frameIntervalRef = useRef(1000 / 10); // 10 FPS default
   const animationFrameRef = useRef<number | null>(null);
 
-  // Color themes
-  const themes = {
-    green: {
-      alive: [0, 1, 0, 1] as [number, number, number, number],
-      dead: [0.1, 0.1, 0.1, 1] as [number, number, number, number],
-    },
-    blue: {
-      alive: [0.2, 0.5, 1, 1] as [number, number, number, number],
-      dead: [0.05, 0.05, 0.1, 1] as [number, number, number, number],
-    },
-    purple: {
-      alive: [0.8, 0.2, 1, 1] as [number, number, number, number],
-      dead: [0.1, 0.05, 0.15, 1] as [number, number, number, number],
-    },
+  // Simple black/white colors
+  const colors = {
+    alive: [0.94, 0.94, 0.94, 1] as [number, number, number, number], // #F0F0F0
+    dead: [0, 0, 0, 1] as [number, number, number, number], // #000000
   };
 
   // Initialize simulation and renderer
@@ -75,6 +66,7 @@ const GameOfLifePage = () => {
           initialDensity: 0.3,
           wrapEdges: true,
         });
+        
         setGame(newGame);
 
         // Create renderer
@@ -83,8 +75,8 @@ const GameOfLifePage = () => {
           width: gridSize,
           height: gridSize,
           cellSize,
-          aliveColor: themes[theme].alive,
-          deadColor: themes[theme].dead,
+          aliveColor: colors.alive,
+          deadColor: colors.dead,
         });
 
         // Initialize WebGPU
@@ -117,7 +109,7 @@ const GameOfLifePage = () => {
         renderer.dispose();
       }
     };
-  }, []); // Only run once on mount
+  }, [gridSize]); // Recreate only when grid size changes
 
   // Update frame interval when speed changes
   useEffect(() => {
@@ -179,8 +171,8 @@ const GameOfLifePage = () => {
   }, [isRunning, isInitialized]);
 
   // Control handlers
-  const handleStart = () => setIsRunning(true);
-  const handlePause = () => setIsRunning(false);
+  const handleRun = () => setIsRunning(true);
+  const handleStop = () => setIsRunning(false);
   const handleStep = () => {
     if (game && renderer && !isRunning) {
       game.step();
@@ -191,7 +183,7 @@ const GameOfLifePage = () => {
   };
   const handleReset = () => {
     if (game && renderer) {
-      game.clear();
+      game.randomize(0.3); // Reset to initial randomized state
       renderer.updateGrid(game.getState().grid);
       renderer.render();
       updateStats(game);
@@ -205,35 +197,12 @@ const GameOfLifePage = () => {
       updateStats(game);
     }
   };
-  const handleAddGlider = () => {
-    if (game && renderer) {
-      const center = Math.floor(gridSize / 2);
-      game.addGlider(center, center);
-      renderer.updateGrid(game.getState().grid);
-      renderer.render();
-      updateStats(game);
-    }
-  };
-  const handleAddBlinker = () => {
-    if (game && renderer) {
-      const center = Math.floor(gridSize / 2);
-      game.addBlinker(center, center);
-      renderer.updateGrid(game.getState().grid);
-      renderer.render();
-      updateStats(game);
-    }
-  };
-  const handleClear = () => {
-    if (game && renderer) {
-      game.clear();
-      renderer.updateGrid(game.getState().grid);
-      renderer.render();
-      updateStats(game);
-    }
-  };
+
+
   const handleGridSizeChange = (newSize: number) => {
+    setIsRunning(false); // Stop simulation when changing grid size
     setGridSize(newSize);
-    // Note: Would need to recreate simulation and renderer with new size
+    // Effect will recreate simulation and renderer with new size
   };
   const handleCellSizeChange = (newSize: number) => {
     setCellSize(newSize);
@@ -242,13 +211,7 @@ const GameOfLifePage = () => {
       renderer.render();
     }
   };
-  const handleThemeChange = (newTheme: 'green' | 'blue' | 'purple') => {
-    setTheme(newTheme);
-    if (renderer) {
-      renderer.updateColors(themes[newTheme].alive, themes[newTheme].dead);
-      renderer.render();
-    }
-  };
+
 
   // Handle canvas click (toggle cells)
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -332,36 +295,40 @@ const GameOfLifePage = () => {
           <div className="game-of-life-controls">
             <div className="control-group">
               <h3>Simulation Controls</h3>
-              <div className="button-group">
-                <button 
-                  className="button" 
-                  onClick={handleStart}
-                  disabled={!isInitialized || isRunning}
-                >
-                  Start
-                </button>
-                <button 
-                  className="button secondary" 
-                  onClick={handlePause}
-                  disabled={!isInitialized || !isRunning}
-                >
-                  Pause
-                </button>
-                <button 
-                  className="button secondary" 
-                  onClick={handleStep}
-                  disabled={!isInitialized || isRunning}
-                >
-                  Step
-                </button>
-                <button 
-                  className="button" 
-                  onClick={handleReset}
-                  disabled={!isInitialized}
-                >
-                  Reset
-                </button>
-              </div>
+                <div className="button-group transport-controls">
+                  <button 
+                    className="button transport-stop" 
+                    onClick={handleStop}
+                    disabled={!isInitialized || !isRunning}
+                    title="Stop simulation"
+                  >
+                    ▢
+                  </button>
+                  <button 
+                    className="button transport-step" 
+                    onClick={handleStep}
+                    disabled={!isInitialized || isRunning}
+                    title="Step one generation"
+                  >
+                    ▷|
+                  </button>
+                  <button 
+                    className="button transport-run" 
+                    onClick={handleRun}
+                    disabled={!isInitialized || isRunning}
+                    title="Run simulation"
+                  >
+                    ▷
+                  </button>
+                  <button 
+                    className="button transport-reset" 
+                    onClick={handleReset}
+                    disabled={!isInitialized}
+                    title="Reset to initial state"
+                  >
+                    ↻
+                  </button>
+                </div>
             </div>
             
             <div className="control-group">
@@ -413,66 +380,9 @@ const GameOfLifePage = () => {
               </div>
             </div>
             
-            <div className="control-group">
-              <h3>Patterns</h3>
-              <div className="button-group">
-                <button 
-                  className="button secondary" 
-                  onClick={handleAddGlider}
-                  disabled={!isInitialized || isRunning}
-                >
-                  Add Glider
-                </button>
-                <button 
-                  className="button secondary" 
-                  onClick={handleAddBlinker}
-                  disabled={!isInitialized || isRunning}
-                >
-                  Add Blinker
-                </button>
-                <button 
-                  className="button secondary" 
-                  onClick={handleRandomize}
-                  disabled={!isInitialized || isRunning}
-                >
-                  Randomize
-                </button>
-                <button 
-                  className="button danger" 
-                  onClick={handleClear}
-                  disabled={!isInitialized || isRunning}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
+
             
-            <div className="control-group">
-              <h3>Colors</h3>
-              <div className="button-group">
-                <button 
-                  className={`button secondary ${theme === 'green' ? 'active' : ''}`}
-                  onClick={() => handleThemeChange('green')}
-                  disabled={!isInitialized}
-                >
-                  Green
-                </button>
-                <button 
-                  className={`button secondary ${theme === 'blue' ? 'active' : ''}`}
-                  onClick={() => handleThemeChange('blue')}
-                  disabled={!isInitialized}
-                >
-                  Blue
-                </button>
-                <button 
-                  className={`button secondary ${theme === 'purple' ? 'active' : ''}`}
-                  onClick={() => handleThemeChange('purple')}
-                  disabled={!isInitialized}
-                >
-                  Purple
-                </button>
-              </div>
-            </div>
+
           </div>
           
           <div className="control-group">
@@ -561,11 +471,11 @@ const GameOfLifePage = () => {
 
         <div className={`status-panel ${isRunning ? 'running' : 'paused'}`}>
           <h4>Status: {isRunning ? 'Running' : 'Paused'}</h4>
-          <p>
-            {isRunning 
-              ? 'Simulation is running. Click Pause to stop.' 
-              : 'Simulation is paused. Click Start to begin or Step to advance one generation.'}
-          </p>
+           <p>
+             {isRunning 
+               ? 'Simulation is running. Click Stop to pause.' 
+               : 'Simulation is stopped. Click Run to begin or Step to advance one generation.'}
+           </p>
           <p className="mt-1 text-muted">
             Click on the grid to toggle cells (when paused).
           </p>

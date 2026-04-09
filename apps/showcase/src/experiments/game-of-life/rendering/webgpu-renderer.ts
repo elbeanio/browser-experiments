@@ -17,6 +17,7 @@ export class GameOfLifeRenderer {
   private bindGroup: GPUBindGroup | null = null;
   private texture: GPUTexture | null = null;
   private sampler: GPUSampler | null = null;
+  private uniformBuffer: GPUBuffer | null = null;
 
   private width: number;
   private height: number;
@@ -35,9 +36,9 @@ export class GameOfLifeRenderer {
     this.aliveColor = options.aliveColor || [0, 1, 0, 1]; // Green
     this.deadColor = options.deadColor || [0.1, 0.1, 0.1, 1]; // Dark gray
 
-    // Set canvas size
-    this.canvas.width = this.width * this.cellSize;
-    this.canvas.height = this.height * this.cellSize;
+    // Set canvas to fixed size (512×512)
+    this.canvas.width = 512;
+    this.canvas.height = 512;
   }
 
   /**
@@ -86,13 +87,15 @@ export class GameOfLifeRenderer {
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
 
-      // Create sampler
+      // Create sampler with repeat addressing for tiling
       this.sampler = this.device.createSampler({
         magFilter: 'nearest',
         minFilter: 'nearest',
+        addressModeU: 'repeat',
+        addressModeV: 'repeat',
       });
 
-      // Create shader module
+      // Create shader module - use sampler repeat mode for tiling (Firefox compatible)
       const shaderCode = `
         struct VertexOutput {
           @builtin(position) position: vec4f,
@@ -101,14 +104,14 @@ export class GameOfLifeRenderer {
 
         @vertex
         fn vertex_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
-          const positions = array(
+          const positions = array<vec2f, 4>(
             vec2f(-1.0, -1.0),
             vec2f(-1.0, 1.0),
             vec2f(1.0, -1.0),
             vec2f(1.0, 1.0),
           );
 
-          const uvs = array(
+          const uvs = array<vec2f, 4>(
             vec2f(0.0, 0.0),
             vec2f(0.0, 1.0),
             vec2f(1.0, 0.0),
@@ -127,13 +130,24 @@ export class GameOfLifeRenderer {
         struct Uniforms {
           alive_color: vec4f,
           dead_color: vec4f,
+          uv_scale_x: f32,
+          uv_scale_y: f32,
         };
 
         @group(0) @binding(2) var<uniform> uniforms: Uniforms;
 
         @fragment
         fn fragment_main(input: VertexOutput) -> @location(0) vec4f {
-          let cell_value = textureSample(grid_texture, grid_sampler, input.uv).r;
+          // Scale UVs for zoom/tiling
+          // uv_scale = 512 / (gridSize * cellSize)  [INVERSE!]
+          // If scale > 1: texture repeats (tiling, zoom OUT)
+          // If scale < 1: texture is magnified (zoom IN, shows portion)
+          let scaled_uv_x: f32 = input.uv.x * uniforms.uv_scale_x;
+          let scaled_uv_y: f32 = input.uv.y * uniforms.uv_scale_y;
+          
+          let tex_coord: vec2f = vec2f(scaled_uv_x, scaled_uv_y);
+          let sampled: vec4f = textureSample(grid_texture, grid_sampler, tex_coord);
+          let cell_value: f32 = sampled.r;
 
           // Mix between dead and alive color based on cell value
           return mix(uniforms.dead_color, uniforms.alive_color, cell_value);
@@ -144,19 +158,22 @@ export class GameOfLifeRenderer {
         code: shaderCode,
       });
 
-      // Create uniform buffer for colors
-      const uniformBufferSize = 4 * 4 * 2; // 2x vec4f (alive_color + dead_color)
-      const uniformBuffer = this.device.createBuffer({
+      // Create uniform buffer for colors and grid parameters
+      // alive_color: vec4f (4 floats)
+      // dead_color: vec4f (4 floats)  
+      // cell_size: f32 (1 float)
+      // grid_width: f32 (1 float)
+      // grid_height: f32 (1 float)
+      // Total: 4 + 4 + 1 + 1 + 1 = 11 floats
+      // Round up to nearest vec4 (4 floats) = 12 floats = 48 bytes
+      const uniformBufferSize = 4 * 4 * 3; // 3x vec4f = 48 bytes
+      this.uniformBuffer = this.device.createBuffer({
         size: uniformBufferSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
-      // Write initial colors to uniform buffer
-      const uniformData = new Float32Array([
-        ...this.aliveColor,
-        ...this.deadColor,
-      ]);
-      this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+      // Write initial data to uniform buffer
+      this.updateUniformBuffer();
 
       // Create bind group layout
       const bindGroupLayout = this.device.createBindGroupLayout({
@@ -201,7 +218,7 @@ export class GameOfLifeRenderer {
           {
             binding: 2,
             resource: {
-              buffer: uniformBuffer,
+              buffer: this.uniformBuffer,
             },
           },
         ],
@@ -248,8 +265,6 @@ export class GameOfLifeRenderer {
     if (!this.isInitialized || !this.device || !this.texture) {
       throw new Error('Renderer not initialized');
     }
-
-    console.info(grid)
 
     if (grid.length !== this.width * this.height) {
       throw new Error(`Grid size mismatch: expected ${this.width * this.height}, got ${grid.length}`);
@@ -378,7 +393,41 @@ export class GameOfLifeRenderer {
   }
 
   /**
-   * Update cell size (recreates canvas)
+   * Update uniform buffer with current colors and UV scale
+   */
+  private updateUniformBuffer(): void {
+    if (!this.device || !this.uniformBuffer) {
+      return;
+    }
+
+    // Calculate UV scale for zoom/tiling
+    // Canvas is fixed at 512px
+    // Grid pixel size = gridSize * cellSize
+    // UV scale = 512 / gridPixelSize (INVERSE relationship!)
+    // Larger cell size → smaller uv_scale → texture appears larger (zoom IN)
+    // Smaller cell size → larger uv_scale → texture appears smaller, tiles (zoom OUT)
+    const uvScaleX = 512 / (this.width * this.cellSize);
+    const uvScaleY = 512 / (this.height * this.cellSize);
+
+    const uniformData = new Float32Array([
+      // alive_color: vec4f
+      ...this.aliveColor,
+      // dead_color: vec4f  
+      ...this.deadColor,
+      // uv_scale_x: f32, uv_scale_y: f32
+      uvScaleX,
+      uvScaleY,
+      // Padding to fill vec4 (2 floats)
+      0.0,
+      0.0,
+    ]);
+
+    this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+  }
+
+  /**
+   * Update cell size (changes zoom level)
+   * Note: Canvas size is fixed, we zoom via UV scaling
    */
   setCellSize(cellSize: number): void {
     if (cellSize <= 0) {
@@ -386,7 +435,6 @@ export class GameOfLifeRenderer {
     }
 
     this.cellSize = cellSize;
-    this.canvas.width = this.width * this.cellSize;
-    this.canvas.height = this.height * this.cellSize;
+    this.updateUniformBuffer();
   }
 }
