@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GameOfLife } from '../experiments/game-of-life/simulation/game-of-life';
 import { GameOfLifeRenderer } from '../experiments/game-of-life/rendering/webgpu-renderer';
+import { 
+  usePerformanceMonitor, 
+  PerformanceVisualization, 
+  BenchmarkMode 
+} from '../experiments/game-of-life/performance';
 
 const GameOfLifePage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -21,11 +26,20 @@ const GameOfLifePage = () => {
   const [generation, setGeneration] = useState(0);
   const [aliveCount, setAliveCount] = useState(0);
   const [density, setDensity] = useState(0);
-  const [fps, setFps] = useState(0);
+  // Performance monitoring
+  const [showPerformancePanel, setShowPerformancePanel] = useState(false);
+  const [showBenchmarkMode, setShowBenchmarkMode] = useState(false);
+  const { metrics, reset: resetPerformance } = usePerformanceMonitor({
+    enabled: true,
+    updateInterval: 1000,
+    warningThresholds: {
+      lowFps: 30,
+      highFrameTime: 33,
+      highMemoryUsage: 80,
+    },
+  });
   
   // Animation state
-  const frameCountRef = useRef(0);
-  const lastFpsUpdateRef = useRef(0);
   const lastStepTimeRef = useRef(0);
   const frameIntervalRef = useRef(1000 / 10); // 10 FPS default
   const animationFrameRef = useRef<number | null>(null);
@@ -124,14 +138,7 @@ const GameOfLifePage = () => {
       return;
     }
 
-    // Calculate FPS
-    frameCountRef.current++;
-    if (currentTime - lastFpsUpdateRef.current >= 1000) {
-      const newFps = Math.round((frameCountRef.current * 1000) / (currentTime - lastFpsUpdateRef.current));
-      setFps(newFps);
-      frameCountRef.current = 0;
-      lastFpsUpdateRef.current = currentTime;
-    }
+    // FPS calculation is now handled by the performance monitor
 
     // Update simulation at target FPS
     if (currentTime - lastStepTimeRef.current >= frameIntervalRef.current) {
@@ -155,7 +162,6 @@ const GameOfLifePage = () => {
     if (isRunning) {
       game.setRunning(true);
       lastStepTimeRef.current = performance.now();
-      lastFpsUpdateRef.current = performance.now();
       animationFrameRef.current = requestAnimationFrame(animationLoop);
     } else {
       game.setRunning(false);
@@ -468,6 +474,33 @@ const GameOfLifePage = () => {
               </div>
             </div>
           </div>
+          
+          <div className="control-group">
+            <h3>Performance Monitoring</h3>
+            <div className="button-group">
+              <button 
+                className={`button secondary ${showPerformancePanel ? 'active' : ''}`}
+                onClick={() => setShowPerformancePanel(!showPerformancePanel)}
+                disabled={!isInitialized}
+              >
+                {showPerformancePanel ? 'Hide Metrics' : 'Show Metrics'}
+              </button>
+              <button 
+                className={`button secondary ${showBenchmarkMode ? 'active' : ''}`}
+                onClick={() => setShowBenchmarkMode(!showBenchmarkMode)}
+                disabled={!isInitialized}
+              >
+                {showBenchmarkMode ? 'Hide Benchmark' : 'Benchmark Mode'}
+              </button>
+              <button 
+                className="button secondary"
+                onClick={resetPerformance}
+                disabled={!isInitialized}
+              >
+                Reset Metrics
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="stats-grid">
@@ -484,10 +517,47 @@ const GameOfLifePage = () => {
             <div className="stat-label">Density</div>
           </div>
           <div className="stat-item">
-            <div className="stat-value">{fps}</div>
+            <div className="stat-value">{metrics.fps}</div>
             <div className="stat-label">FPS</div>
           </div>
+          <div className="stat-item">
+            <div className="stat-value">{metrics.frameTime.toFixed(1)}</div>
+            <div className="stat-label">Frame Time (ms)</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-value">
+              {metrics.memoryUsage !== null ? `${metrics.memoryUsage.toFixed(1)}%` : 'N/A'}
+            </div>
+            <div className="stat-label">Memory</div>
+          </div>
         </div>
+
+        {showPerformancePanel && (
+          <div className="performance-panel mt-4">
+            <PerformanceVisualization 
+              metrics={metrics}
+              title="Game of Life Performance"
+              showDetails={true}
+              showWarnings={true}
+            />
+          </div>
+        )}
+
+        {showBenchmarkMode && (
+          <div className="benchmark-panel mt-4">
+            <BenchmarkMode
+              currentSettings={{
+                gridSize,
+                cellSize,
+                speed,
+                theme,
+              }}
+              onBenchmarkComplete={(results) => {
+                console.log('Benchmark completed:', results);
+              }}
+            />
+          </div>
+        )}
 
         <div className={`status-panel ${isRunning ? 'running' : 'paused'}`}>
           <h4>Status: {isRunning ? 'Running' : 'Paused'}</h4>
