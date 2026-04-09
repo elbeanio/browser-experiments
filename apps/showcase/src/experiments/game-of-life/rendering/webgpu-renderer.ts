@@ -17,7 +17,7 @@ export class GameOfLifeRenderer {
   private bindGroup: GPUBindGroup | null = null;
   private texture: GPUTexture | null = null;
   private sampler: GPUSampler | null = null;
-  
+
   private width: number;
   private height: number;
   private cellSize: number;
@@ -134,7 +134,7 @@ export class GameOfLifeRenderer {
         @fragment
         fn fragment_main(input: VertexOutput) -> @location(0) vec4f {
           let cell_value = textureSample(grid_texture, grid_sampler, input.uv).r;
-          
+
           // Mix between dead and alive color based on cell value
           return mix(uniforms.dead_color, uniforms.alive_color, cell_value);
         }
@@ -249,14 +249,23 @@ export class GameOfLifeRenderer {
       throw new Error('Renderer not initialized');
     }
 
+    console.info(grid)
+
     if (grid.length !== this.width * this.height) {
       throw new Error(`Grid size mismatch: expected ${this.width * this.height}, got ${grid.length}`);
+    }
+
+    // Scale 0/1 values to 0/255 for r8unorm texture
+    // r8unorm stores values as 0.0 to 1.0, where 255 becomes 1.0
+    const scaledGrid = new Uint8Array(grid.length);
+    for (let i = 0; i < grid.length; i++) {
+      scaledGrid[i] = grid[i] * 255;
     }
 
     // Write grid data to texture
     this.device.queue.writeTexture(
       { texture: this.texture },
-      grid.buffer,
+      scaledGrid.buffer,
       { bytesPerRow: this.width, rowsPerImage: this.height },
       { width: this.width, height: this.height, depthOrArrayLayers: 1 }
     );
@@ -339,7 +348,7 @@ export class GameOfLifeRenderer {
    */
   dispose(): void {
     this.stopAnimation();
-    
+
     // Note: In a real application, we would properly dispose of all WebGPU resources
     // (textures, buffers, pipelines, etc.) to avoid memory leaks
     this.isInitialized = false;
