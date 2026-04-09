@@ -58,3 +58,4 @@ __image_snapshots__/
 # Temporary files
 tmp/
 temp/
+.beads/.beads-credential-key
