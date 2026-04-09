@@ -24,7 +24,7 @@ export class GameOfLifeRenderer {
   private cellSize: number;
   private aliveColor: [number, number, number, number];
   private deadColor: [number, number, number, number];
-  private disableTiling = false;
+  private dimNonEditableTiles = false;
 
   private isInitialized = false;
   private animationFrameId: number | null = null;
@@ -133,6 +133,7 @@ export class GameOfLifeRenderer {
           dead_color: vec4f,
           uv_scale_x: f32,
           uv_scale_y: f32,
+          dim_non_editable_tiles: f32, // 0.0 = false, 1.0 = true
         };
 
         @group(0) @binding(2) var<uniform> uniforms: Uniforms;
@@ -151,7 +152,19 @@ export class GameOfLifeRenderer {
           let cell_value: f32 = sampled.r;
 
           // Mix between dead and alive color based on cell value
-          return mix(uniforms.dead_color, uniforms.alive_color, cell_value);
+          var color: vec4f = mix(uniforms.dead_color, uniforms.alive_color, cell_value);
+          
+          // If dimming is enabled, dim non-editable tiles
+          // Editable tile is where scaled_uv_x < 1.0 && scaled_uv_y < 1.0
+          if (uniforms.dim_non_editable_tiles > 0.5) {
+            let in_editable_tile: bool = scaled_uv_x < 1.0 && scaled_uv_y < 1.0;
+            if (!in_editable_tile) {
+              // Dim non-editable tiles: reduce opacity by 70%
+              color = vec4f(color.rgb * 0.3, color.a * 0.7);
+            }
+          }
+          
+          return color;
         }
       `;
 
@@ -162,11 +175,11 @@ export class GameOfLifeRenderer {
       // Create uniform buffer for colors and grid parameters
       // alive_color: vec4f (4 floats)
       // dead_color: vec4f (4 floats)
-      // cell_size: f32 (1 float)
-      // grid_width: f32 (1 float)
-      // grid_height: f32 (1 float)
-      // Total: 4 + 4 + 1 + 1 + 1 = 11 floats
-      // Round up to nearest vec4 (4 floats) = 12 floats = 48 bytes
+      // uv_scale_x: f32 (1 float)
+      // uv_scale_y: f32 (1 float)
+      // disable_tiling: f32 (1 float)
+      // Padding: 1 float to align to vec4 boundary
+      // Total: 4 + 4 + 1 + 1 + 1 + 1 = 12 floats = 48 bytes
       const uniformBufferSize = 4 * 4 * 3; // 3x vec4f = 48 bytes
       this.uniformBuffer = this.device.createBuffer({
         size: uniformBufferSize,
@@ -417,25 +430,19 @@ export class GameOfLifeRenderer {
     // UV scale = 512 / gridPixelSize (INVERSE relationship!)
     // Larger cell size → smaller uv_scale → texture appears larger (zoom IN)
     // Smaller cell size → larger uv_scale → texture appears smaller, tiles (zoom OUT)
-    let uvScaleX = 512 / (this.width * this.cellSize);
-    let uvScaleY = 512 / (this.height * this.cellSize);
-
-    // If tiling is disabled, clamp UV scale to max 1.0 (no tiling)
-    if (this.disableTiling) {
-      uvScaleX = Math.min(uvScaleX, 1.0);
-      uvScaleY = Math.min(uvScaleY, 1.0);
-    }
+    const uvScaleX = 512 / (this.width * this.cellSize);
+    const uvScaleY = 512 / (this.height * this.cellSize);
 
     const uniformData = new Float32Array([
       // alive_color: vec4f
       ...this.aliveColor,
       // dead_color: vec4f
       ...this.deadColor,
-      // uv_scale_x: f32, uv_scale_y: f32
+      // uv_scale_x: f32, uv_scale_y: f32, dim_non_editable_tiles: f32
       uvScaleX,
       uvScaleY,
-      // Padding to fill vec4 (2 floats)
-      0.0,
+      this.dimNonEditableTiles ? 1.0 : 0.0,
+      // Padding to fill vec4 (1 float)
       0.0,
     ]);
 
@@ -456,11 +463,12 @@ export class GameOfLifeRenderer {
   }
 
   /**
-   * Enable or disable texture tiling
-   * When disabled, UV scale is clamped to max 1.0 (no tiling)
+   * Enable or disable dimming of non-editable tiles
+   * When enabled, tiles outside the top-left 1x1 UV space are dimmed
+   * This visually indicates which tile can be edited when the grid tiles
    */
-  setTilingEnabled(enabled: boolean): void {
-    this.disableTiling = !enabled;
+  setDimNonEditableTiles(enabled: boolean): void {
+    this.dimNonEditableTiles = enabled;
     this.updateUniformBuffer();
   }
 }
