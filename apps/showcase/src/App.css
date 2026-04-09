@@ -147,7 +147,9 @@
   background: var(--color-bg-card);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition:
+    transform 0.3s,
+    box-shadow 0.3s;
   border: 1px solid var(--color-border);
 }
 
@@ -212,7 +214,7 @@
 }
 
 .experiment-card-features li:before {
-  content: "•";
+  content: '•';
   color: var(--color-primary);
   font-weight: bold;
 }
@@ -308,15 +310,16 @@
 /* Game of Life specific styles */
 .game-of-life-container {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 1fr minmax(320px, 420px);
   gap: var(--spacing-xl);
   margin-top: var(--spacing-xl);
+  align-items: start;
 }
 
 .game-of-life-canvas-container {
   background: var(--color-bg-card);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm);
   box-shadow: var(--shadow-lg);
   display: flex;
   justify-content: center;
@@ -330,8 +333,9 @@
   background: var(--color-bg);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  width: 512px;
-  height: 512px;
+  width: 100%;
+  height: auto;
+  max-width: 512px;
 }
 
 .game-of-life-controls {
@@ -412,7 +416,7 @@
   font-size: 0.875rem;
 }
 
-.slider-group input[type="range"] {
+.slider-group input[type='range'] {
   width: 100%;
   height: 6px;
   border-radius: 3px;
@@ -421,7 +425,7 @@
   -webkit-appearance: none;
 }
 
-.slider-group input[type="range"]::-webkit-slider-thumb {
+.slider-group input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 20px;
   height: 20px;
@@ -510,31 +514,31 @@
   .hero h1 {
     font-size: 2.25rem;
   }
-  
+
   .experiments-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .header-content {
     flex-direction: column;
     gap: var(--spacing-md);
   }
-  
+
   .nav-links {
     width: 100%;
     justify-content: center;
   }
-  
+
   .experiment-card-footer {
     flex-direction: column;
     gap: var(--spacing-md);
     align-items: stretch;
   }
-  
+
   .experiment-link {
     text-align: center;
   }
-  
+
   .game-of-life-container {
     grid-template-columns: 1fr;
   }
@@ -544,30 +548,30 @@
   .hero h1 {
     font-size: 1.75rem;
   }
-  
+
   .hero-subtitle {
     font-size: 1rem;
   }
-  
+
   .experiment-detail-header h1 {
     font-size: 1.75rem;
   }
-  
+
   .experiment-meta {
     flex-direction: column;
     gap: var(--spacing-xs);
   }
-  
+
   .experiment-meta {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-sm);
   }
-  
+
   .button-group {
     flex-direction: column;
   }
-  
+
   .button {
     width: 100%;
   }
@@ -615,6 +619,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Fixed width for consistent spacing */
+  flex: 0 0 auto;
+  width: 48px;
+  height: 40px;
 }
 
 .transport-stop {
