@@ -387,6 +387,50 @@
   align-items: center;
 }
 
+/* Pattern management styles */
+.dropdown-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: var(--spacing-md);
+}
+
+.pattern-dropdown {
+  flex: 1;
+  background: var(--color-secondary);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  min-width: 0; /* Allow shrinking */
+}
+
+.pattern-dropdown:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pattern-hint {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-primary);
+  font-size: 0.75rem;
+  color: #a5c4ff;
+}
+
+/* Active state for tools */
+.button.active {
+  background: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.button.secondary.active {
+  background: #1e40af;
+}
+
 .button {
   background: var(--color-primary);
   color: white;
@@ -657,11 +701,7 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto; /* Don't stretch transport buttons */
-}
-  /* Fixed width for consistent spacing */
-  flex: 0 0 auto;
-  width: 48px;
-  height: 40px;
+  width: 48px; /* Fixed width for consistent spacing */
 }
 
 .transport-stop {

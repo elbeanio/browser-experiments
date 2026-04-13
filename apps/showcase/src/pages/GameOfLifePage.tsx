@@ -35,6 +35,12 @@ const GameOfLifePage = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState<'single' | '3x3' | '5x5'>('single');
   const [drawMode, setDrawMode] = useState<'draw' | 'erase' | null>(null); // null = no tool selected
+  const [selectedPattern, setSelectedPattern] = useState<{
+    name: string;
+    width: number;
+    height: number;
+    cells: number[][];
+  } | null>(null);
 
   // Pattern management
   const [savedPatterns, setSavedPatterns] = useState<
@@ -181,28 +187,32 @@ const GameOfLifePage = () => {
     };
   }, [isRunning, isInitialized]);
 
-  // Disable tile dimming when simulation is running
   // Update highlighting based on tool selection and simulation state
   useEffect(() => {
     if (renderer) {
-      // Enable highlighting if a tool is selected AND simulation isn't running
-      const shouldHighlight = drawMode !== null && !isRunning;
+      // Enable highlighting if a tool or pattern is selected AND simulation isn't running
+      const shouldHighlight = (drawMode !== null || selectedPattern !== null) && !isRunning;
       renderer.setHighlightEditableTile(shouldHighlight);
       renderer.render();
     }
-  }, [drawMode, isRunning, renderer]);
+  }, [drawMode, selectedPattern, isRunning, renderer]);
 
-  // Handle ESC key to exit drawing mode
+  // Handle ESC key to exit drawing mode or pattern placement
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && drawMode !== null) {
-        setDrawMode(null);
+      if (event.key === 'Escape') {
+        if (drawMode !== null) {
+          setDrawMode(null);
+        }
+        if (selectedPattern !== null) {
+          setSelectedPattern(null);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [drawMode]);
+  }, [drawMode, selectedPattern]);
 
   // Control handlers
   const handleRun = () => setIsRunning(true);
@@ -329,15 +339,20 @@ const GameOfLifePage = () => {
 
   // Handle mouse down on canvas
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    // Only allow drawing if a tool is selected and simulation isn't running
-    if (!game || !renderer || isRunning || drawMode === null) return;
+    // Only allow drawing if a tool or pattern is selected and simulation isn't running
+    if (!game || !renderer || isRunning || (drawMode === null && selectedPattern === null)) return;
 
     setIsDrawing(true);
 
     const coords = getGridCoordinates(event.clientX, event.clientY);
     if (coords) {
       const [gridX, gridY] = coords;
-      drawCells(gridX, gridY);
+
+      if (drawMode !== null) {
+        drawCells(gridX, gridY);
+      } else if (selectedPattern !== null) {
+        placePattern(gridX, gridY, selectedPattern);
+      }
     }
   };
 
@@ -360,6 +375,86 @@ const GameOfLifePage = () => {
   // Handle mouse leave canvas
   const handleMouseLeave = () => {
     setIsDrawing(false);
+  };
+
+  // Save current pattern
+  const handleSavePattern = () => {
+    if (game && patternName.trim()) {
+      const state = game.getState();
+      const newPattern = {
+        name: patternName.trim(),
+        grid: new Uint8Array(state.grid),
+        width: state.width,
+        height: state.height,
+      };
+      setSavedPatterns([...savedPatterns, newPattern]);
+      setPatternName('');
+    }
+  };
+
+  // Load a saved pattern
+  const handleLoadPattern = (pattern: {
+    name: string;
+    grid: Uint8Array;
+    width: number;
+    height: number;
+  }) => {
+    if (game && renderer) {
+      // Check if pattern matches current grid size
+      if (pattern.width !== gridSize || pattern.height !== gridSize) {
+        alert(
+          `Pattern size (${pattern.width}x${pattern.height}) doesn't match current grid (${gridSize}x${gridSize}). Please resize grid first.`
+        );
+        return;
+      }
+
+      // Load pattern
+      for (let i = 0; i < pattern.grid.length; i++) {
+        const x = i % gridSize;
+        const y = Math.floor(i / gridSize);
+        game.setCell(x, y, pattern.grid[i] === 1);
+      }
+
+      renderer.updateGrid(game.getState().grid);
+      renderer.render();
+      updateStats(game);
+    }
+  };
+
+  // Place a pattern at specific grid coordinates
+  const placePattern = (
+    centerX: number,
+    centerY: number,
+    pattern: { width: number; height: number; cells: number[][] }
+  ) => {
+    if (!game || !renderer || isRunning) return;
+
+    // Calculate top-left corner
+    const startX = centerX - Math.floor(pattern.width / 2);
+    const startY = centerY - Math.floor(pattern.height / 2);
+
+    let cellsModified = false;
+
+    // Place the pattern
+    for (let y = 0; y < pattern.height; y++) {
+      for (let x = 0; x < pattern.width; x++) {
+        if (pattern.cells[y][x] === 1) {
+          const targetX = startX + x;
+          const targetY = startY + y;
+
+          if (targetX >= 0 && targetX < gridSize && targetY >= 0 && targetY < gridSize) {
+            game.setCell(targetX, targetY, true);
+            cellsModified = true;
+          }
+        }
+      }
+    }
+
+    if (cellsModified) {
+      renderer.updateGrid(game.getState().grid);
+      renderer.render();
+      updateStats(game);
+    }
   };
 
   // Load saved patterns from localStorage on mount
@@ -397,34 +492,6 @@ const GameOfLifePage = () => {
       }
     }
   }, [savedPatterns]);
-
-  // Helper function to flip grid horizontally
-  const flipHorizontal = (grid: Uint8Array, width: number, height: number): Uint8Array => {
-    const flipped = new Uint8Array(grid.length);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const srcIndex = y * width + x;
-        const dstX = width - 1 - x;
-        const dstIndex = y * width + dstX;
-        flipped[dstIndex] = grid[srcIndex];
-      }
-    }
-    return flipped;
-  };
-
-  // Helper function to flip grid vertically
-  const flipVertical = (grid: Uint8Array, width: number, height: number): Uint8Array => {
-    const flipped = new Uint8Array(grid.length);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const srcIndex = y * width + x;
-        const dstY = height - 1 - y;
-        const dstIndex = dstY * width + x;
-        flipped[dstIndex] = grid[srcIndex];
-      }
-    }
-    return flipped;
-  };
 
   // Built-in Game of Life patterns
   const builtInPatterns = [
@@ -544,7 +611,9 @@ const GameOfLifePage = () => {
             <canvas
               ref={canvasRef}
               className="game-of-life-canvas"
-              style={{ cursor: drawMode !== null ? 'crosshair' : 'default' }}
+              style={{
+                cursor: drawMode !== null || selectedPattern !== null ? 'crosshair' : 'default',
+              }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -732,141 +801,6 @@ const GameOfLifePage = () => {
                   >
                     🎲 Random
                   </button>
-                  <button
-                    className="button secondary"
-                    onClick={() => {
-                      if (game && renderer) {
-                        const state = game.getState();
-                        const { width, height } = state;
-                        const grid = state.grid;
-
-                        // Invert each cell
-                        for (let y = 0; y < height; y++) {
-                          for (let x = 0; x < width; x++) {
-                            const index = y * width + x;
-                            game.setCell(x, y, grid[index] === 0);
-                          }
-                        }
-
-                        renderer.updateGrid(game.getState().grid);
-                        renderer.render();
-                        updateStats(game);
-                      }
-                    }}
-                    disabled={!isInitialized || isRunning}
-                    title="Invert pattern (dead ↔ alive)"
-                  >
-                    🔄 Invert
-                  </button>
-                </div>
-
-                <div className="button-group">
-                  <button
-                    className="button secondary"
-                    onClick={() => {
-                      if (game && renderer) {
-                        const state = game.getState();
-                        const { width, height } = state;
-
-                        // Only rotate square grids
-                        if (width !== height) {
-                          alert(
-                            'Rotation only works for square grids (grid size must be equal in both dimensions)'
-                          );
-                          return;
-                        }
-
-                        const grid = state.grid;
-                        const size = width;
-
-                        // Rotate 90 degrees clockwise for square grid
-                        const rotated = new Uint8Array(grid.length);
-                        for (let y = 0; y < size; y++) {
-                          for (let x = 0; x < size; x++) {
-                            const srcIndex = y * size + x;
-                            const dstX = size - 1 - y;
-                            const dstY = x;
-                            const dstIndex = dstY * size + dstX;
-                            rotated[dstIndex] = grid[srcIndex];
-                          }
-                        }
-
-                        // Update game state
-                        for (let y = 0; y < size; y++) {
-                          for (let x = 0; x < size; x++) {
-                            const index = y * size + x;
-                            game.setCell(x, y, rotated[index] === 1);
-                          }
-                        }
-
-                        renderer.updateGrid(game.getState().grid);
-                        renderer.render();
-                        updateStats(game);
-                      }
-                    }}
-                    disabled={!isInitialized || isRunning}
-                    title="Rotate 90° clockwise (square grids only)"
-                  >
-                    ↻ Rotate
-                  </button>
-                  <button
-                    className="button secondary"
-                    onClick={() => {
-                      if (game && renderer) {
-                        const state = game.getState();
-                        const { width, height } = state;
-                        const grid = state.grid;
-
-                        // Flip horizontally
-                        const flipped = flipHorizontal(grid, width, height);
-
-                        // Update game state
-                        for (let y = 0; y < height; y++) {
-                          for (let x = 0; x < width; x++) {
-                            const index = y * width + x;
-                            game.setCell(x, y, flipped[index] === 1);
-                          }
-                        }
-
-                        renderer.updateGrid(game.getState().grid);
-                        renderer.render();
-                        updateStats(game);
-                      }
-                    }}
-                    disabled={!isInitialized || isRunning}
-                    title="Flip horizontally"
-                  >
-                    ↔ Flip H
-                  </button>
-                  <button
-                    className="button secondary"
-                    onClick={() => {
-                      if (game && renderer) {
-                        const state = game.getState();
-                        const { width, height } = state;
-                        const grid = state.grid;
-
-                        // Flip vertically
-                        const flipped = flipVertical(grid, width, height);
-
-                        // Update game state
-                        for (let y = 0; y < height; y++) {
-                          for (let x = 0; x < width; x++) {
-                            const index = y * width + x;
-                            game.setCell(x, y, flipped[index] === 1);
-                          }
-                        }
-
-                        renderer.updateGrid(game.getState().grid);
-                        renderer.render();
-                        updateStats(game);
-                      }
-                    }}
-                    disabled={!isInitialized || isRunning}
-                    title="Flip vertically"
-                  >
-                    ↕ Flip V
-                  </button>
                 </div>
               </div>
 
@@ -875,27 +809,20 @@ const GameOfLifePage = () => {
                 <div className="input-group">
                   <input
                     type="text"
-                    placeholder="Pattern name"
+                    placeholder="Save as..."
                     value={patternName}
                     onChange={(e) => setPatternName(e.target.value)}
                     disabled={!isInitialized || isRunning}
                     className="pattern-input"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && patternName.trim()) {
+                        handleSavePattern();
+                      }
+                    }}
                   />
                   <button
                     className="button secondary"
-                    onClick={() => {
-                      if (game && patternName.trim()) {
-                        const state = game.getState();
-                        const newPattern = {
-                          name: patternName.trim(),
-                          grid: new Uint8Array(state.grid),
-                          width: state.width,
-                          height: state.height,
-                        };
-                        setSavedPatterns([...savedPatterns, newPattern]);
-                        setPatternName('');
-                      }
-                    }}
+                    onClick={handleSavePattern}
                     disabled={!isInitialized || isRunning || !patternName.trim()}
                     title="Save current pattern"
                   >
@@ -905,55 +832,44 @@ const GameOfLifePage = () => {
 
                 {savedPatterns.length > 0 && (
                   <div className="saved-patterns">
-                    <h4>Saved Patterns:</h4>
-                    <div className="pattern-list">
-                      {savedPatterns.map((pattern, index) => (
-                        <div key={index} className="pattern-item">
-                          <span className="pattern-name">{pattern.name}</span>
-                          <div className="pattern-actions">
-                            <button
-                              className="button small"
-                              onClick={() => {
-                                if (game && renderer) {
-                                  // Check if pattern matches current grid size
-                                  if (pattern.width !== gridSize || pattern.height !== gridSize) {
-                                    alert(
-                                      `Pattern size (${pattern.width}x${pattern.height}) doesn't match current grid (${gridSize}x${gridSize}). Please resize grid first.`
-                                    );
-                                    return;
-                                  }
-
-                                  // Load pattern
-                                  for (let i = 0; i < pattern.grid.length; i++) {
-                                    const x = i % gridSize;
-                                    const y = Math.floor(i / gridSize);
-                                    game.setCell(x, y, pattern.grid[i] === 1);
-                                  }
-
-                                  renderer.updateGrid(game.getState().grid);
-                                  renderer.render();
-                                  updateStats(game);
-                                }
-                              }}
-                              disabled={!isInitialized || isRunning}
-                              title="Load pattern"
-                            >
-                              📂 Load
-                            </button>
-                            <button
-                              className="button small danger"
-                              onClick={() => {
-                                const newPatterns = [...savedPatterns];
-                                newPatterns.splice(index, 1);
-                                setSavedPatterns(newPatterns);
-                              }}
-                              title="Delete pattern"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="dropdown-group">
+                      <select
+                        className="pattern-dropdown"
+                        disabled={!isInitialized || isRunning}
+                        onChange={(e) => {
+                          const index = parseInt(e.target.value);
+                          if (index >= 0 && savedPatterns[index]) {
+                            handleLoadPattern(savedPatterns[index]);
+                          }
+                        }}
+                        value=""
+                      >
+                        <option value="">Load saved pattern...</option>
+                        {savedPatterns.map((pattern, index) => (
+                          <option key={index} value={index}>
+                            {pattern.name} ({pattern.width}x{pattern.height})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="button small danger"
+                        onClick={() => {
+                          const select = document.querySelector(
+                            '.pattern-dropdown'
+                          ) as HTMLSelectElement;
+                          const index = parseInt(select.value);
+                          if (index >= 0 && savedPatterns[index]) {
+                            const newPatterns = [...savedPatterns];
+                            newPatterns.splice(index, 1);
+                            setSavedPatterns(newPatterns);
+                            select.value = '';
+                          }
+                        }}
+                        disabled={!isInitialized || isRunning}
+                        title="Delete selected pattern"
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
                 )}
@@ -964,46 +880,31 @@ const GameOfLifePage = () => {
                     {builtInPatterns.map((pattern, index) => (
                       <button
                         key={index}
-                        className="button secondary"
+                        className={`button secondary ${selectedPattern?.name === pattern.name ? 'active' : ''}`}
                         onClick={() => {
-                          if (game && renderer) {
-                            // Clear the grid first
-                            game.clear();
-
-                            // Calculate position to center the pattern
-                            const centerX = Math.floor((gridSize - pattern.width) / 2);
-                            const centerY = Math.floor((gridSize - pattern.height) / 2);
-
-                            // Place the pattern
-                            for (let y = 0; y < pattern.height; y++) {
-                              for (let x = 0; x < pattern.width; x++) {
-                                if (pattern.cells[y][x] === 1) {
-                                  const targetX = centerX + x;
-                                  const targetY = centerY + y;
-                                  if (
-                                    targetX >= 0 &&
-                                    targetX < gridSize &&
-                                    targetY >= 0 &&
-                                    targetY < gridSize
-                                  ) {
-                                    game.setCell(targetX, targetY, true);
-                                  }
-                                }
-                              }
-                            }
-
-                            renderer.updateGrid(game.getState().grid);
-                            renderer.render();
-                            updateStats(game);
+                          // Toggle pattern placement mode
+                          if (selectedPattern?.name === pattern.name) {
+                            setSelectedPattern(null);
+                          } else {
+                            setSelectedPattern(pattern);
+                            setDrawMode(null); // Exit draw/erase mode if active
                           }
                         }}
                         disabled={!isInitialized || isRunning}
-                        title={`Place ${pattern.name} pattern (${pattern.width}x${pattern.height})`}
+                        title={`${selectedPattern?.name === pattern.name ? 'Click to place' : 'Select'} ${pattern.name} pattern (${pattern.width}x${pattern.height}). Press ESC to exit.`}
                       >
                         {pattern.name}
+                        {selectedPattern?.name === pattern.name && ' ✓'}
                       </button>
                     ))}
                   </div>
+                  {selectedPattern && (
+                    <div className="pattern-hint">
+                      <small>
+                        Click on grid to place {selectedPattern.name} pattern. Press ESC to cancel.
+                      </small>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
