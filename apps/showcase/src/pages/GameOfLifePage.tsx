@@ -458,12 +458,14 @@ const GameOfLifePage = () => {
   };
 
   // Generate different types of noise
-  const generateNoise = (type: 'uniform' | 'clustered' | 'sparse') => {
+  const generateNoise = (type: 'uniform' | 'clustered' | 'sparse' | 'center' | 'edges') => {
     if (!game || !renderer || isRunning) return;
 
     game.clear();
     const state = game.getState();
     const { width, height } = state;
+    const centerX = width / 2;
+    const centerY = height / 2;
 
     switch (type) {
       case 'uniform':
@@ -504,6 +506,42 @@ const GameOfLifePage = () => {
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
             if (Math.random() < 0.1) {
+              game.setCell(x, y, true);
+            }
+          }
+        }
+        break;
+
+      case 'center':
+        // Center-dense noise - higher density towards center
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            // Calculate distance from center (normalized 0-1)
+            const dx = (x - centerX) / centerX;
+            const dy = (y - centerY) / centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Higher probability near center (inverse of distance)
+            const probability = Math.max(0, 0.5 * (1 - distance));
+            if (Math.random() < probability) {
+              game.setCell(x, y, true);
+            }
+          }
+        }
+        break;
+
+      case 'edges':
+        // Edge-dense noise - higher density towards edges
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            // Calculate distance from center (normalized 0-1)
+            const dx = (x - centerX) / centerX;
+            const dy = (y - centerY) / centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Higher probability near edges (proportional to distance)
+            const probability = 0.4 * distance;
+            if (Math.random() < probability) {
               game.setCell(x, y, true);
             }
           }
@@ -886,8 +924,6 @@ const GameOfLifePage = () => {
                 </button>
 
                 {/* Row 3 - More noise types */}
-                <div className="tool-spacer"></div>
-                <div className="tool-spacer"></div>
                 <button
                   className="tool-button"
                   onClick={() => generateNoise('sparse')}
@@ -895,6 +931,22 @@ const GameOfLifePage = () => {
                   title="Sparse noise (10% density)"
                 >
                   ✨
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('center')}
+                  disabled={!isInitialized || isRunning}
+                  title="Center-dense noise (higher density in middle)"
+                >
+                  🎯
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('edges')}
+                  disabled={!isInitialized || isRunning}
+                  title="Edge-dense noise (higher density at edges)"
+                >
+                  🏁
                 </button>
                 <div className="tool-spacer"></div>
               </div>
