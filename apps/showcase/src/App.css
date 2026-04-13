@@ -829,6 +829,7 @@
   font-size: 1.2rem;
   transition: background 0.2s;
   padding: 0;
+  color: white;
 }
 
 .tool-button:hover:not(:disabled) {
