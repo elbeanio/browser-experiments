@@ -1,0 +1,26 @@
+--- a/apps/showcase/src/pages/GameOfLifePage.tsx
++++ b/apps/showcase/src/pages/GameOfLifePage.tsx
+@@ -226,10 +226,24 @@ const GameOfLifePage = () => {
+     const rect = canvasRef.current.getBoundingClientRect();
+     const x = clientX - rect.left;
+     const y = clientY - rect.top;
+ 
+-    const gridX = Math.floor(x / cellSize);
+-    const gridY = Math.floor(y / cellSize);
++    // Canvas is fixed at 512x512
++    const canvasWidth = 512;
++    const canvasHeight = 512;
++
++    // Convert to normalized coordinates [0, 1]
++    // Note: canvas y=0 is top, but texture v=0 is bottom
++    // Use pixel centers (add 0.5) to avoid boundary issues
++    const uvX = (x + 0.5) / canvasWidth;
++    const uvY = (canvasHeight - y - 0.5) / canvasHeight; // Flip Y and use pixel center
++
++    // Calculate UV scale (same as in shader)
++    const uvScaleX = canvasWidth / (gridSize * cellSize);
++    const uvScaleY = canvasHeight / (gridSize * cellSize);
++
++    // Scale to tiled coordinates
++    const scaledX = uvX * uvScaleX;
++    const scaledY = uvY * uvScaleY;

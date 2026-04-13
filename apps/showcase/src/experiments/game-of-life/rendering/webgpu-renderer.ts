@@ -24,7 +24,7 @@ export class GameOfLifeRenderer {
   private cellSize: number;
   private aliveColor: [number, number, number, number];
   private deadColor: [number, number, number, number];
-  private dimNonEditableTiles = false;
+  private highlightEditableTile = false;
 
   private isInitialized = false;
   private animationFrameId: number | null = null;
@@ -133,7 +133,7 @@ export class GameOfLifeRenderer {
           dead_color: vec4f,
           uv_scale_x: f32,
           uv_scale_y: f32,
-          dim_non_editable_tiles: f32, // 0.0 = false, 1.0 = true
+          highlight_editable_tile: f32, // 0.0 = false, 1.0 = true
         };
 
         @group(0) @binding(2) var<uniform> uniforms: Uniforms;
@@ -154,12 +154,28 @@ export class GameOfLifeRenderer {
           // Mix between dead and alive color based on cell value
           var color: vec4f = mix(uniforms.dead_color, uniforms.alive_color, cell_value);
           
-          // If dimming is enabled, dim non-editable tiles
-          // Editable tile is where scaled_uv_x < 1.0 && scaled_uv_y < 1.0
-          if (uniforms.dim_non_editable_tiles > 0.5) {
-            let in_editable_tile: bool = scaled_uv_x < 1.0 && scaled_uv_y < 1.0;
+          // If highlighting is enabled, dim tile copies (non-editable tiles)
+          // Editable tile is the top-left copy
+          if (uniforms.highlight_editable_tile > 0.5) {
+            // Check if we're in the editable tile
+            // Editable tile requires: left column if tiling horizontally, top row if tiling vertically
+            var in_editable_tile: bool = true;
+            
+            // Check horizontal tiling
+            if (uniforms.uv_scale_x > 1.0) {
+              let in_left_column: bool = scaled_uv_x < 1.0;
+              in_editable_tile = in_editable_tile && in_left_column;
+            }
+            
+            // Check vertical tiling  
+            if (uniforms.uv_scale_y > 1.0) {
+              let in_top_row: bool = scaled_uv_y >= uniforms.uv_scale_y - 1.0;
+              in_editable_tile = in_editable_tile && in_top_row;
+            }
+            
+            // Dim if we're NOT in the editable tile
             if (!in_editable_tile) {
-              // Dim non-editable tiles: reduce opacity by 70%
+              // Dim tile copies: reduce opacity by 70%
               color = vec4f(color.rgb * 0.3, color.a * 0.7);
             }
           }
@@ -438,10 +454,10 @@ export class GameOfLifeRenderer {
       ...this.aliveColor,
       // dead_color: vec4f
       ...this.deadColor,
-      // uv_scale_x: f32, uv_scale_y: f32, dim_non_editable_tiles: f32
+      // uv_scale_x: f32, uv_scale_y: f32, highlight_editable_tile: f32
       uvScaleX,
       uvScaleY,
-      this.dimNonEditableTiles ? 1.0 : 0.0,
+      this.highlightEditableTile ? 1.0 : 0.0,
       // Padding to fill vec4 (1 float)
       0.0,
     ]);
@@ -463,12 +479,12 @@ export class GameOfLifeRenderer {
   }
 
   /**
-   * Enable or disable dimming of non-editable tiles
-   * When enabled, tiles outside the top-left 1x1 UV space are dimmed
+   * Enable or disable highlighting of the editable tile
+   * When enabled, tile copies (non-editable tiles) are dimmed
    * This visually indicates which tile can be edited when the grid tiles
    */
-  setDimNonEditableTiles(enabled: boolean): void {
-    this.dimNonEditableTiles = enabled;
+  setHighlightEditableTile(enabled: boolean): void {
+    this.highlightEditableTile = enabled;
     this.updateUniformBuffer();
   }
 }

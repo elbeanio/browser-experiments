@@ -310,21 +310,33 @@
 /* Game of Life specific styles */
 .game-of-life-container {
   display: grid;
-  grid-template-columns: 1fr minmax(320px, 420px);
-  gap: var(--spacing-xl);
-  margin-top: var(--spacing-xl);
+  grid-template-columns: 1fr 360px; /* left flexible, right fixed */
+  gap: 28px;
   align-items: start;
+  margin-top: var(--spacing-xl);
+}
+
+/* Responsive layout for smaller screens */
+@media (max-width: 1000px) {
+  .game-of-life-container {
+    grid-template-columns: 1fr;
+  }
+  .game-of-life-controls {
+    width: auto;
+    order: 2;
+  }
 }
 
 .game-of-life-canvas-container {
   background: var(--color-bg-card);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-sm);
+  padding: var(--spacing-lg);
   box-shadow: var(--shadow-lg);
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 512px; /* Minimum canvas area */
+  width: 100%;
+  align-self: start; /* Align with controls panel top */
 }
 
 .game-of-life-canvas {
@@ -341,25 +353,38 @@
 .game-of-life-controls {
   background: var(--color-bg-card);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-xl);
   box-shadow: var(--shadow-lg);
+  align-self: start; /* Align with canvas container top */
 }
 
 .control-group {
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: 28px; /* Consistent spacing */
+}
+
+/* Add visual separator between major sections */
+.control-group:not(:last-child) {
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .control-group h3 {
   margin-top: 0;
   margin-bottom: var(--spacing-md);
-  color: var(--color-primary);
-  font-size: 1rem;
+  color: #a5c4ff; /* Brighter color for better contrast */
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .button-group {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: 8px; /* Consistent spacing */
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .button {
@@ -371,8 +396,19 @@
   font-size: 0.875rem;
   font-weight: 500;
   transition: background 0.2s;
-  flex: 1;
   min-width: 80px;
+}
+
+/* Toolbar buttons should have fixed width, not stretch */
+.button.toolbar-button {
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+/* Consistent button sizing in controls panel */
+.game-of-life-controls .button {
+  flex: 0 0 auto; /* Don't stretch buttons in controls */
+  min-width: 90px; /* Consistent minimum width */
 }
 
 .button:hover {
@@ -615,10 +651,13 @@
   font-family: monospace;
   font-size: 1.2rem;
   padding: 0.5rem 0.75rem;
-  min-width: 2.5rem;
+  min-width: 2.8rem; /* Slightly larger for consistency */
+  height: 2.8rem; /* Square buttons */
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto; /* Don't stretch transport buttons */
+}
   /* Fixed width for consistent spacing */
   flex: 0 0 auto;
   width: 48px;
