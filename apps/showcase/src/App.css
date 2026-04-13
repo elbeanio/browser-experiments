@@ -691,53 +691,39 @@
   align-items: center;
 }
 
+.transport-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
 .transport-controls .button {
-  font-family: monospace;
-  font-size: 1.2rem;
-  padding: 0.5rem 0.75rem;
-  min-width: 2.8rem; /* Slightly larger for consistency */
-  height: 2.8rem; /* Square buttons */
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto; /* Don't stretch transport buttons */
-  width: 48px; /* Fixed width for consistent spacing */
+  background: var(--color-secondary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1.2rem;
+  transition: background 0.2s;
+  padding: 0;
+  font-family: monospace;
 }
 
-.transport-stop {
-  background: var(--color-danger);
-  color: white;
+.transport-controls .button:hover:not(:disabled) {
+  background: #334155;
 }
 
-.transport-stop:hover:not(:disabled) {
-  background: var(--color-danger-hover);
+.transport-controls .button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.transport-step {
-  background: var(--color-warning);
-  color: white;
-}
-
-.transport-step:hover:not(:disabled) {
-  background: var(--color-warning-hover);
-}
-
-.transport-run {
-  background: var(--color-success);
-  color: white;
-}
-
-.transport-run:hover:not(:disabled) {
-  background: var(--color-success-hover);
-}
-
-.transport-reset {
-  background: var(--color-info);
-  color: white;
-}
-
-.transport-reset:hover:not(:disabled) {
-  background: var(--color-info-hover);
+.transport-controls .button.active {
+  background: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
 /* Pattern management styles */
