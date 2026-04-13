@@ -34,7 +34,7 @@ const GameOfLifePage = () => {
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState<'single' | '3x3' | '5x5'>('single');
-  const [drawMode, setDrawMode] = useState<'draw' | 'erase'>('draw');
+  const [drawMode, setDrawMode] = useState<'draw' | 'erase' | null>(null); // null = no tool selected
 
   // Pattern management
   const [savedPatterns, setSavedPatterns] = useState<
@@ -182,11 +182,27 @@ const GameOfLifePage = () => {
   }, [isRunning, isInitialized]);
 
   // Disable tile dimming when simulation is running
+  // Update highlighting based on tool selection and simulation state
   useEffect(() => {
     if (renderer) {
-      renderer.setDimNonEditableTiles(false);
+      // Enable highlighting if a tool is selected AND simulation isn't running
+      const shouldHighlight = drawMode !== null && !isRunning;
+      renderer.setHighlightEditableTile(shouldHighlight);
+      renderer.render();
     }
-  }, [isRunning, renderer]);
+  }, [drawMode, isRunning, renderer]);
+
+  // Handle ESC key to exit drawing mode
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && drawMode !== null) {
+        setDrawMode(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [drawMode]);
 
   // Control handlers
   const handleRun = () => setIsRunning(true);
@@ -294,10 +310,13 @@ const GameOfLifePage = () => {
       if (targetX >= 0 && targetX < gridSize && targetY >= 0 && targetY < gridSize) {
         if (drawMode === 'draw') {
           game.setCell(targetX, targetY, true);
-        } else {
+        } else if (drawMode === 'erase') {
           game.setCell(targetX, targetY, false);
         }
-        cellsModified = true;
+        // If drawMode is null, don't modify cells
+        if (drawMode !== null) {
+          cellsModified = true;
+        }
       }
     }
 
@@ -310,11 +329,10 @@ const GameOfLifePage = () => {
 
   // Handle mouse down on canvas
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!game || !renderer || isRunning) return;
+    // Only allow drawing if a tool is selected and simulation isn't running
+    if (!game || !renderer || isRunning || drawMode === null) return;
 
     setIsDrawing(true);
-    // Enable dimming of non-editable tiles while drawing
-    renderer.setDimNonEditableTiles(true);
 
     const coords = getGridCoordinates(event.clientX, event.clientY);
     if (coords) {
@@ -337,19 +355,11 @@ const GameOfLifePage = () => {
   // Handle mouse up on canvas
   const handleMouseUp = () => {
     setIsDrawing(false);
-    // Disable dimming when not drawing
-    if (renderer) {
-      renderer.setDimNonEditableTiles(false);
-    }
   };
 
   // Handle mouse leave canvas
   const handleMouseLeave = () => {
     setIsDrawing(false);
-    // Disable dimming when mouse leaves canvas
-    if (renderer) {
-      renderer.setDimNonEditableTiles(false);
-    }
   };
 
   // Load saved patterns from localStorage on mount
@@ -534,6 +544,7 @@ const GameOfLifePage = () => {
             <canvas
               ref={canvasRef}
               className="game-of-life-canvas"
+              style={{ cursor: drawMode !== null ? 'crosshair' : 'default' }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -629,19 +640,19 @@ const GameOfLifePage = () => {
                 <div className="button-group">
                   <button
                     className={`button secondary ${drawMode === 'draw' ? 'active' : ''}`}
-                    onClick={() => setDrawMode('draw')}
+                    onClick={() => setDrawMode(drawMode === 'draw' ? null : 'draw')}
                     disabled={!isInitialized || isRunning}
-                    title="Draw mode (click and drag to add cells)"
+                    title="Draw mode (click and drag to add cells). Press ESC to exit."
                   >
-                    ✏️ Draw
+                    ✏️ {drawMode === 'draw' ? 'Drawing' : 'Draw'}
                   </button>
                   <button
                     className={`button secondary ${drawMode === 'erase' ? 'active' : ''}`}
-                    onClick={() => setDrawMode('erase')}
+                    onClick={() => setDrawMode(drawMode === 'erase' ? null : 'erase')}
                     disabled={!isInitialized || isRunning}
-                    title="Erase mode (click and drag to remove cells)"
+                    title="Erase mode (click and drag to remove cells). Press ESC to exit."
                   >
-                    🗑️ Erase
+                    🗑️ {drawMode === 'erase' ? 'Erasing' : 'Erase'}
                   </button>
                 </div>
 
@@ -649,7 +660,7 @@ const GameOfLifePage = () => {
                   <button
                     className={`button secondary ${brushSize === 'single' ? 'active' : ''}`}
                     onClick={() => setBrushSize('single')}
-                    disabled={!isInitialized || isRunning}
+                    disabled={!isInitialized || isRunning || drawMode === null}
                     title="Single cell brush"
                   >
                     ● Single
@@ -657,7 +668,7 @@ const GameOfLifePage = () => {
                   <button
                     className={`button secondary ${brushSize === '3x3' ? 'active' : ''}`}
                     onClick={() => setBrushSize('3x3')}
-                    disabled={!isInitialized || isRunning}
+                    disabled={!isInitialized || isRunning || drawMode === null}
                     title="3x3 brush"
                   >
                     ◼ 3×3
@@ -665,7 +676,7 @@ const GameOfLifePage = () => {
                   <button
                     className={`button secondary ${brushSize === '5x5' ? 'active' : ''}`}
                     onClick={() => setBrushSize('5x5')}
-                    disabled={!isInitialized || isRunning}
+                    disabled={!isInitialized || isRunning || drawMode === null}
                     title="5x5 brush"
                   >
                     ◼ 5×5
