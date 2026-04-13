@@ -714,7 +714,7 @@ const GameOfLifePage = () => {
             <div className="control-group">
               <div className="transport-controls">
                 <button
-                  className="button"
+                  className="tool-button"
                   onClick={handleStop}
                   disabled={!isInitialized || !isRunning}
                   title="Stop simulation"
@@ -722,7 +722,7 @@ const GameOfLifePage = () => {
                   ▢
                 </button>
                 <button
-                  className="button"
+                  className="tool-button"
                   onClick={handleStep}
                   disabled={!isInitialized || isRunning}
                   title="Step one generation"
@@ -730,7 +730,7 @@ const GameOfLifePage = () => {
                   ▷|
                 </button>
                 <button
-                  className="button"
+                  className="tool-button"
                   onClick={handleRun}
                   disabled={!isInitialized || isRunning}
                   title="Run simulation"
@@ -738,7 +738,7 @@ const GameOfLifePage = () => {
                   ▷
                 </button>
                 <button
-                  className="button"
+                  className="tool-button"
                   onClick={handleReset}
                   disabled={!isInitialized}
                   title="Reset to initial state"

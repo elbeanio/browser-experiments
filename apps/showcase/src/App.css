@@ -697,33 +697,8 @@
   gap: 6px;
 }
 
-.transport-controls .button {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-secondary);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 1.2rem;
-  transition: background 0.2s;
-  padding: 0;
-  font-family: monospace;
-}
-
-.transport-controls .button:hover:not(:disabled) {
-  background: #334155;
-}
-
-.transport-controls .button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.transport-controls .button.active {
-  background: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+.transport-controls .tool-button {
+  font-family: monospace; /* Override default font for transport symbols */
 }
 
 /* Pattern management styles */
