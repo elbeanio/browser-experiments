@@ -809,3 +809,117 @@
 .button.danger:hover:not(:disabled) {
   background: var(--color-danger-hover);
 }
+
+/* Compact toolbar layout */
+.game-of-life-controls.compact {
+  width: 220px; /* Match transport controls width */
+  padding: var(--spacing-md);
+}
+
+.compact-sliders {
+  margin-bottom: var(--spacing-lg);
+}
+
+.slider-group.compact {
+  margin-bottom: var(--spacing-sm);
+}
+
+.slider-group.compact label {
+  font-size: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.tool-section {
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tool-section:last-child {
+  border-bottom: none;
+}
+
+.tool-section-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a5c4ff;
+  margin-top: var(--spacing-sm);
+  text-align: center;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.tool-button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-secondary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1.2rem;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.tool-button:hover:not(:disabled) {
+  background: #334155;
+}
+
+.tool-button.active {
+  background: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.tool-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tool-spacer {
+  width: 40px;
+  height: 40px;
+  visibility: hidden;
+}
+
+.compact-patterns {
+  margin-top: var(--spacing-md);
+}
+
+.input-group.compact {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.pattern-input.compact {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+  height: 32px;
+}
+
+.dropdown-group.compact {
+  margin-top: 0;
+}
+
+.pattern-dropdown.compact {
+  font-size: 0.75rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  height: 32px;
+}
+
+.button.small {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8rem;
+  min-width: auto;
+  height: 32px;
+}

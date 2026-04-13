@@ -457,6 +457,65 @@ const GameOfLifePage = () => {
     }
   };
 
+  // Generate different types of noise
+  const generateNoise = (type: 'uniform' | 'clustered' | 'sparse') => {
+    if (!game || !renderer || isRunning) return;
+
+    game.clear();
+    const state = game.getState();
+    const { width, height } = state;
+
+    switch (type) {
+      case 'uniform':
+        // Uniform random distribution (30% density)
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            if (Math.random() < 0.3) {
+              game.setCell(x, y, true);
+            }
+          }
+        }
+        break;
+
+      case 'clustered':
+        // Clustered noise - creates clusters of cells
+        const clusters = Math.floor((width * height) / 100);
+        for (let i = 0; i < clusters; i++) {
+          const centerX = Math.floor(Math.random() * width);
+          const centerY = Math.floor(Math.random() * height);
+          const clusterSize = 3 + Math.floor(Math.random() * 4);
+
+          for (let dy = -clusterSize; dy <= clusterSize; dy++) {
+            for (let dx = -clusterSize; dx <= clusterSize; dx++) {
+              if (Math.random() < 0.7) {
+                const x = centerX + dx;
+                const y = centerY + dy;
+                if (x >= 0 && x < width && y >= 0 && y < height) {
+                  game.setCell(x, y, true);
+                }
+              }
+            }
+          }
+        }
+        break;
+
+      case 'sparse':
+        // Sparse noise - very low density (10%)
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            if (Math.random() < 0.1) {
+              game.setCell(x, y, true);
+            }
+          }
+        }
+        break;
+    }
+
+    renderer.updateGrid(game.getState().grid);
+    renderer.render();
+    updateStats(game);
+  };
+
   // Load saved patterns from localStorage on mount
   useEffect(() => {
     try {
@@ -595,15 +654,6 @@ const GameOfLifePage = () => {
       <div className="experiment-detail">
         <div className="experiment-detail-header">
           <h1>Conway&apos;s Game of Life</h1>
-          <p className="hero-subtitle">WebGPU Experiment - Naive Implementation</p>
-
-          <div className="experiment-meta">
-            <span className="text-muted">
-              Status: {isInitialized ? 'Ready' : 'Initializing...'}
-            </span>
-            <span className="text-muted">Complexity: Beginner</span>
-            <span className="text-muted">WebGPU Required</span>
-          </div>
         </div>
 
         <div className="game-of-life-container">
@@ -621,9 +671,9 @@ const GameOfLifePage = () => {
             />
           </div>
 
-          <div className="game-of-life-controls">
+          <div className="game-of-life-controls compact">
+            {/* Transport Controls */}
             <div className="control-group">
-              <h3>Simulation Controls</h3>
               <div className="button-group transport-controls">
                 <button
                   className="button transport-stop"
@@ -660,11 +710,11 @@ const GameOfLifePage = () => {
               </div>
             </div>
 
-            <div className="control-group">
-              <h3>Grid Configuration</h3>
-              <div className="slider-group">
+            {/* Grid Configuration - Compact */}
+            <div className="control-group compact-sliders">
+              <div className="slider-group compact">
                 <label htmlFor="gridSize">
-                  Grid Size: {gridSize}x{gridSize}
+                  Grid: {gridSize}×{gridSize}
                 </label>
                 <input
                   type="range"
@@ -677,8 +727,8 @@ const GameOfLifePage = () => {
                   disabled={!isInitialized}
                 />
               </div>
-              <div className="slider-group">
-                <label htmlFor="cellSize">Cell Size: {cellSize}px</label>
+              <div className="slider-group compact">
+                <label htmlFor="cellSize">Cell: {cellSize}px</label>
                 <input
                   type="range"
                   id="cellSize"
@@ -690,8 +740,8 @@ const GameOfLifePage = () => {
                   disabled={!isInitialized}
                 />
               </div>
-              <div className="slider-group">
-                <label htmlFor="speed">Speed: {speed} FPS</label>
+              <div className="slider-group compact">
+                <label htmlFor="speed">Speed: {speed}fps</label>
                 <input
                   type="range"
                   id="speed"
@@ -703,210 +753,202 @@ const GameOfLifePage = () => {
                   disabled={!isInitialized}
                 />
               </div>
+            </div>
 
-              <div className="control-group">
-                <h3>Drawing Tools</h3>
-                <div className="button-group">
-                  <button
-                    className={`button secondary ${drawMode === 'draw' ? 'active' : ''}`}
-                    onClick={() => setDrawMode(drawMode === 'draw' ? null : 'draw')}
-                    disabled={!isInitialized || isRunning}
-                    title="Draw mode (click and drag to add cells). Press ESC to exit."
-                  >
-                    ✏️ {drawMode === 'draw' ? 'Drawing' : 'Draw'}
-                  </button>
-                  <button
-                    className={`button secondary ${drawMode === 'erase' ? 'active' : ''}`}
-                    onClick={() => setDrawMode(drawMode === 'erase' ? null : 'erase')}
-                    disabled={!isInitialized || isRunning}
-                    title="Erase mode (click and drag to remove cells). Press ESC to exit."
-                  >
-                    🗑️ {drawMode === 'erase' ? 'Erasing' : 'Erase'}
-                  </button>
-                </div>
+            {/* Freehand Drawing Tools - 4x2 grid */}
+            <div className="control-group tool-section">
+              <div className="tool-grid">
+                <button
+                  className={`tool-button ${drawMode === 'draw' ? 'active' : ''}`}
+                  onClick={() => setDrawMode(drawMode === 'draw' ? null : 'draw')}
+                  disabled={!isInitialized || isRunning}
+                  title="Draw (click and drag to add cells)"
+                >
+                  ✏️
+                </button>
+                <button
+                  className={`tool-button ${drawMode === 'erase' ? 'active' : ''}`}
+                  onClick={() => setDrawMode(drawMode === 'erase' ? null : 'erase')}
+                  disabled={!isInitialized || isRunning}
+                  title="Erase (click and drag to remove cells)"
+                >
+                  🗑️
+                </button>
+                <button
+                  className={`tool-button ${brushSize === 'single' ? 'active' : ''}`}
+                  onClick={() => setBrushSize('single')}
+                  disabled={!isInitialized || isRunning || drawMode === null}
+                  title="Single cell brush"
+                >
+                  ●
+                </button>
+                <button
+                  className={`tool-button ${brushSize === '3x3' ? 'active' : ''}`}
+                  onClick={() => setBrushSize('3x3')}
+                  disabled={!isInitialized || isRunning || drawMode === null}
+                  title="3×3 brush"
+                >
+                  ◼
+                </button>
 
-                <div className="button-group">
-                  <button
-                    className={`button secondary ${brushSize === 'single' ? 'active' : ''}`}
-                    onClick={() => setBrushSize('single')}
-                    disabled={!isInitialized || isRunning || drawMode === null}
-                    title="Single cell brush"
-                  >
-                    ● Single
-                  </button>
-                  <button
-                    className={`button secondary ${brushSize === '3x3' ? 'active' : ''}`}
-                    onClick={() => setBrushSize('3x3')}
-                    disabled={!isInitialized || isRunning || drawMode === null}
-                    title="3x3 brush"
-                  >
-                    ◼ 3×3
-                  </button>
-                  <button
-                    className={`button secondary ${brushSize === '5x5' ? 'active' : ''}`}
-                    onClick={() => setBrushSize('5x5')}
-                    disabled={!isInitialized || isRunning || drawMode === null}
-                    title="5x5 brush"
-                  >
-                    ◼ 5×5
-                  </button>
-                </div>
+                <button
+                  className={`tool-button ${brushSize === '5x5' ? 'active' : ''}`}
+                  onClick={() => setBrushSize('5x5')}
+                  disabled={!isInitialized || isRunning || drawMode === null}
+                  title="5×5 brush"
+                >
+                  ◼◼
+                </button>
+                <div className="tool-spacer"></div>
+                <div className="tool-spacer"></div>
+                <div className="tool-spacer"></div>
+              </div>
+              <div className="tool-section-label">Freehand Tools</div>
+            </div>
 
-                <div className="slider-group">
-                  <label htmlFor="density">Random Density: {Math.round(density * 100)}%</label>
-                  <input
-                    type="range"
-                    id="density"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={density * 100}
-                    onChange={(e) => setDensity(parseInt(e.target.value) / 100)}
-                    disabled={!isInitialized || isRunning}
-                  />
-                </div>
-
-                <div className="button-group">
+            {/* Pattern Brushes - 4x2 grid */}
+            <div className="control-group tool-section">
+              <div className="tool-grid">
+                {/* Row 1 - Built-in patterns */}
+                {builtInPatterns.slice(0, 4).map((pattern, index) => (
                   <button
-                    className="button secondary"
+                    key={index}
+                    className={`tool-button ${selectedPattern?.name === pattern.name ? 'active' : ''}`}
                     onClick={() => {
-                      if (game) {
-                        game.clear();
-                        if (renderer) {
-                          renderer.updateGrid(game.getState().grid);
-                          renderer.render();
-                          updateStats(game);
-                        }
+                      if (selectedPattern?.name === pattern.name) {
+                        setSelectedPattern(null);
+                      } else {
+                        setSelectedPattern(pattern);
+                        setDrawMode(null);
                       }
                     }}
                     disabled={!isInitialized || isRunning}
-                    title="Clear all cells"
+                    title={`${pattern.name} (${pattern.width}×${pattern.height})`}
                   >
-                    🗑️ Clear
+                    {pattern.name === 'Glider' && '🛸'}
+                    {pattern.name === 'Blinker' && '💡'}
+                    {pattern.name === 'Toad' && '🐸'}
+                    {pattern.name === 'Beacon' && '🏮'}
                   </button>
+                ))}
+
+                {/* Row 2 - More patterns and actions */}
+                {builtInPatterns.slice(4, 5).map((pattern, index) => (
                   <button
-                    className="button secondary"
+                    key={index + 4}
+                    className={`tool-button ${selectedPattern?.name === pattern.name ? 'active' : ''}`}
                     onClick={() => {
-                      if (game) {
-                        game.randomize(density);
-                        if (renderer) {
-                          renderer.updateGrid(game.getState().grid);
-                          renderer.render();
-                          updateStats(game);
-                        }
+                      if (selectedPattern?.name === pattern.name) {
+                        setSelectedPattern(null);
+                      } else {
+                        setSelectedPattern(pattern);
+                        setDrawMode(null);
                       }
                     }}
                     disabled={!isInitialized || isRunning}
-                    title={`Randomize grid (${Math.round(density * 100)}% density)`}
+                    title={`${pattern.name} (${pattern.width}×${pattern.height})`}
                   >
-                    🎲 Random
+                    {pattern.name === 'Pulsar' && '💓'}
                   </button>
-                </div>
+                ))}
+                <button
+                  className="tool-button"
+                  onClick={() => {
+                    if (game) {
+                      game.clear();
+                      if (renderer) {
+                        renderer.updateGrid(game.getState().grid);
+                        renderer.render();
+                        updateStats(game);
+                      }
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Clear all cells"
+                >
+                  🧹
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('uniform')}
+                  disabled={!isInitialized || isRunning}
+                  title="Uniform noise (30% density)"
+                >
+                  🎲
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('clustered')}
+                  disabled={!isInitialized || isRunning}
+                  title="Clustered noise (groups of cells)"
+                >
+                  🌌
+                </button>
+
+                {/* Row 3 - More noise types */}
+                <div className="tool-spacer"></div>
+                <div className="tool-spacer"></div>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('sparse')}
+                  disabled={!isInitialized || isRunning}
+                  title="Sparse noise (10% density)"
+                >
+                  ✨
+                </button>
+                <div className="tool-spacer"></div>
+              </div>
+              <div className="tool-section-label">Pattern Brushes</div>
+            </div>
+
+            {/* Pattern Save/Load - Compact */}
+            <div className="control-group compact-patterns">
+              <div className="input-group compact">
+                <input
+                  type="text"
+                  placeholder="Save pattern..."
+                  value={patternName}
+                  onChange={(e) => setPatternName(e.target.value)}
+                  disabled={!isInitialized || isRunning}
+                  className="pattern-input compact"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && patternName.trim()) {
+                      handleSavePattern();
+                    }
+                  }}
+                />
+                <button
+                  className="button small"
+                  onClick={handleSavePattern}
+                  disabled={!isInitialized || isRunning || !patternName.trim()}
+                  title="Save current pattern"
+                >
+                  💾
+                </button>
               </div>
 
-              <div className="control-group">
-                <h3>Pattern Management</h3>
-                <div className="input-group">
-                  <input
-                    type="text"
-                    placeholder="Save as..."
-                    value={patternName}
-                    onChange={(e) => setPatternName(e.target.value)}
+              {savedPatterns.length > 0 && (
+                <div className="dropdown-group compact">
+                  <select
+                    className="pattern-dropdown compact"
                     disabled={!isInitialized || isRunning}
-                    className="pattern-input"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && patternName.trim()) {
-                        handleSavePattern();
+                    onChange={(e) => {
+                      const index = parseInt(e.target.value);
+                      if (index >= 0 && savedPatterns[index]) {
+                        handleLoadPattern(savedPatterns[index]);
                       }
                     }}
-                  />
-                  <button
-                    className="button secondary"
-                    onClick={handleSavePattern}
-                    disabled={!isInitialized || isRunning || !patternName.trim()}
-                    title="Save current pattern"
+                    value=""
                   >
-                    💾 Save
-                  </button>
-                </div>
-
-                {savedPatterns.length > 0 && (
-                  <div className="saved-patterns">
-                    <div className="dropdown-group">
-                      <select
-                        className="pattern-dropdown"
-                        disabled={!isInitialized || isRunning}
-                        onChange={(e) => {
-                          const index = parseInt(e.target.value);
-                          if (index >= 0 && savedPatterns[index]) {
-                            handleLoadPattern(savedPatterns[index]);
-                          }
-                        }}
-                        value=""
-                      >
-                        <option value="">Load saved pattern...</option>
-                        {savedPatterns.map((pattern, index) => (
-                          <option key={index} value={index}>
-                            {pattern.name} ({pattern.width}x{pattern.height})
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        className="button small danger"
-                        onClick={() => {
-                          const select = document.querySelector(
-                            '.pattern-dropdown'
-                          ) as HTMLSelectElement;
-                          const index = parseInt(select.value);
-                          if (index >= 0 && savedPatterns[index]) {
-                            const newPatterns = [...savedPatterns];
-                            newPatterns.splice(index, 1);
-                            setSavedPatterns(newPatterns);
-                            select.value = '';
-                          }
-                        }}
-                        disabled={!isInitialized || isRunning}
-                        title="Delete selected pattern"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="builtin-patterns">
-                  <h4>Built-in Patterns:</h4>
-                  <div className="button-group">
-                    {builtInPatterns.map((pattern, index) => (
-                      <button
-                        key={index}
-                        className={`button secondary ${selectedPattern?.name === pattern.name ? 'active' : ''}`}
-                        onClick={() => {
-                          // Toggle pattern placement mode
-                          if (selectedPattern?.name === pattern.name) {
-                            setSelectedPattern(null);
-                          } else {
-                            setSelectedPattern(pattern);
-                            setDrawMode(null); // Exit draw/erase mode if active
-                          }
-                        }}
-                        disabled={!isInitialized || isRunning}
-                        title={`${selectedPattern?.name === pattern.name ? 'Click to place' : 'Select'} ${pattern.name} pattern (${pattern.width}x${pattern.height}). Press ESC to exit.`}
-                      >
+                    <option value="">Load pattern...</option>
+                    {savedPatterns.map((pattern, index) => (
+                      <option key={index} value={index}>
                         {pattern.name}
-                        {selectedPattern?.name === pattern.name && ' ✓'}
-                      </button>
+                      </option>
                     ))}
-                  </div>
-                  {selectedPattern && (
-                    <div className="pattern-hint">
-                      <small>
-                        Click on grid to place {selectedPattern.name} pattern. Press ESC to cancel.
-                      </small>
-                    </div>
-                  )}
+                  </select>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
