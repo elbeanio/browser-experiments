@@ -1234,9 +1234,9 @@ const GameOfLifePage = () => {
                   className="button small"
                   onClick={() => handleSaveToFile(true)}
                   disabled={!isInitialized || isRunning || !startingPositionGrid}
-                  title="Save starting position to PNG file"
+                  title="Save initial position to PNG file"
                 >
-                  💾 Save Starting
+                  💾 Initial
                 </button>
                 <button
                   className="button small"
@@ -1244,7 +1244,7 @@ const GameOfLifePage = () => {
                   disabled={!isInitialized || isRunning}
                   title="Save current state to PNG file"
                 >
-                  💾 Save Current
+                  💾 Current
                 </button>
                 <button
                   className="button small"
