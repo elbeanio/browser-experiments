@@ -990,10 +990,14 @@ const GameOfLifePage = () => {
               <div className="performance-panel">
                 <h4>Current Performance</h4>
                 <div className="metric-grid">
-                  <div className="metric">
-                    <div className="metric-value">{metrics.fps.toFixed(1)}</div>
-                    <div className="metric-label">FPS</div>
-                  </div>
+                   <div className="metric">
+                     <div className="metric-value">{simulationFps.toFixed(1)}</div>
+                     <div className="metric-label">Simulation FPS</div>
+                   </div>
+                   <div className="metric">
+                     <div className="metric-value">{metrics.fps.toFixed(1)}</div>
+                     <div className="metric-label">Render FPS</div>
+                   </div>
                   <div className="metric">
                     <div className="metric-value">{metrics.frameTime.toFixed(1)}ms</div>
                     <div className="metric-label">Frame Time</div>
@@ -1025,7 +1029,7 @@ const GameOfLifePage = () => {
 
       {/* FPS Counter */}
       <div className="fps-counter">
-        {metrics.fps.toFixed(1)} FPS
+        {simulationFps.toFixed(1)} FPS
       </div>
     </ExperimentLayout>
   );
