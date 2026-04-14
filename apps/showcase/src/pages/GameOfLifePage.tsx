@@ -289,11 +289,20 @@ const GameOfLifePage = () => {
   // Handle grid size change
   const handleGridSizeChange = (newSize: number) => {
     if (newSize >= 1024) {
-      setGridSize(1024);
+      // "max" special value - calculate grid size to fill canvas
+      const canvasBasedSize = calculateGridSizeFromCanvas();
+      if (canvasBasedSize > 0) {
+        setGridSize(canvasBasedSize);
+      } else {
+        // Fallback if canvas not available
+        setGridSize(1024);
+      }
     } else {
       setGridSize(newSize);
     }
   };
+
+
 
   // Handle cell size change
   const handleCellSizeChange = (newSize: number) => {
@@ -828,12 +837,18 @@ const GameOfLifePage = () => {
               step={16}
               onChange={handleGridSizeChange}
               disabled={!isInitialized}
-              formatValue={(value) => value >= 1024 ? 'max' : `${value}×${value}`}
+              formatValue={(value) => {
+                if (value >= 1024) {
+                  const canvasSize = calculateGridSizeFromCanvas();
+                  return canvasSize > 0 ? `${canvasSize}×${canvasSize}` : 'max';
+                }
+                return `${value}×${value}`;
+              }}
               compact
             />
             {gridSize >= 1024 && (
               <div className="slider-hint">
-                Canvas size: {calculateGridSizeFromCanvas()}×{calculateGridSizeFromCanvas()}
+                Fills canvas ({calculateGridSizeFromCanvas()}×{calculateGridSizeFromCanvas()})
               </div>
             )}
             
