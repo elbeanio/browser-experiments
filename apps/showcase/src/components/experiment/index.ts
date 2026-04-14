@@ -10,6 +10,12 @@ export { default as ToolButton } from './tools/ToolButton';
 export { default as ToolSlider } from './tools/ToolSlider';
 export { default as FileSaveLoad } from './tools/FileSaveLoad';
 
+// New reusable components
+export { default as CanvasManager } from './canvas/CanvasManager';
+export { default as MetricsDisplay } from './metrics/MetricsDisplay';
+export { default as FileManager } from './files/FileManager';
+export { default as ExperimentCanvas } from './ExperimentCanvas';
+
 // Hooks
 export { default as useExperimentState } from './hooks/useExperimentState';
 
@@ -22,3 +28,7 @@ export type { ToolSectionProps } from './tools/ToolSection';
 export type { ToolButtonProps } from './tools/ToolButton';
 export type { ToolSliderProps } from './tools/ToolSlider';
 export type { FileSaveLoadProps } from './tools/FileSaveLoad';
+export type { CanvasContext, CanvasManagerProps } from './canvas/CanvasManager';
+export type { PerformanceMetrics, ExperimentMetrics, MetricsDisplayProps } from './metrics/MetricsDisplay';
+export type { FileSaveOptions, FileLoadOptions, FileManagerProps } from './files/FileManager';
+export type { ExperimentCanvasProps } from './ExperimentCanvas';
