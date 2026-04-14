@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameOfLife } from '../experiments/game-of-life/simulation/game-of-life';
 import { GameOfLifeRenderer } from '../experiments/game-of-life/rendering/webgpu-renderer';
+import { GameOfLifeComputeRenderer } from '../experiments/game-of-life/rendering/webgpu-compute-renderer';
 import { usePerformanceMonitor } from '../experiments/game-of-life/performance';
 
 import {
@@ -19,7 +20,8 @@ import GameOfLifeTools from '../components/experiment/game-of-life/GameOfLifeToo
 const GameOfLifePage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [game, setGame] = useState<GameOfLife | null>(null);
-  const [renderer, setRenderer] = useState<GameOfLifeRenderer | null>(null);
+  const [renderer, setRenderer] = useState<GameOfLifeRenderer | GameOfLifeComputeRenderer | null>(null);
+  const [rendererType, setRendererType] = useState<'compute' | 'regular' | 'unknown'>('unknown');
   
   // Use the experiment state hook
   const [experimentState, experimentActions] = useExperimentState({
@@ -161,21 +163,49 @@ const GameOfLifePage = () => {
           initialDensity: 0.4,
           wrapEdges: true,
         });
-        const newRenderer = new GameOfLifeRenderer({
-          canvas: canvasRef.current,
-          width: gridSize,
-          height: gridSize,
-          cellSize,
-          aliveColor: [1, 1, 1, 1], // White cells
-          deadColor: [0.1, 0.1, 0.1, 1], // Dark gray background
-        });
+        
+        // Try to use compute renderer first, fall back to regular renderer if needed
+        let newRenderer: GameOfLifeRenderer | GameOfLifeComputeRenderer;
+        let rendererType: 'compute' | 'regular' = 'compute';
+        
+        try {
+          newRenderer = new GameOfLifeComputeRenderer({
+            canvas: canvasRef.current,
+            width: gridSize,
+            height: gridSize,
+            cellSize,
+            aliveColor: [1, 1, 1, 1], // White cells
+            deadColor: [0.1, 0.1, 0.1, 1], // Dark gray background
+            useComputeShaders: true, // Enable GPU compute optimization
+            workgroupSize: [8, 8], // 8×8 workgroup for good GPU utilization
+          });
+          
+          await newRenderer.initialize();
+          console.log('Compute renderer initialized successfully');
+        } catch (computeError) {
+          console.warn('Compute renderer failed, falling back to regular renderer:', computeError);
+          newRenderer = new GameOfLifeRenderer({
+            canvas: canvasRef.current,
+            width: gridSize,
+            height: gridSize,
+            cellSize,
+            aliveColor: [1, 1, 1, 1], // White cells
+            deadColor: [0.1, 0.1, 0.1, 1], // Dark gray background
+          });
+          
+          await newRenderer.initialize();
+          rendererType = 'regular';
+          console.log('Regular renderer initialized (fallback mode)');
+        }
 
-        await newRenderer.initialize();
-        newRenderer.updateGrid(newGame.getState().grid);
+        // Initialize grid with empty state
+        const emptyGrid = new Uint8Array(gridSize * gridSize);
+        newRenderer.updateGrid(emptyGrid);
         newRenderer.render();
 
         setGame(newGame);
         setRenderer(newRenderer);
+        setRendererType(rendererType);
         setIsInitialized(true);
         setError(null);
 
@@ -184,9 +214,13 @@ const GameOfLifePage = () => {
         newRenderer.updateGrid(newGame.getState().grid);
         newRenderer.render();
         updateStats(newGame);
+        
+        // Log renderer type for debugging
+        console.log(`Game of Life initialized with ${rendererType} renderer, grid: ${gridSize}×${gridSize}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to initialize WebGPU');
         setIsInitialized(false);
+        console.error('WebGPU initialization error:', err);
       }
     };
 
@@ -211,8 +245,19 @@ const GameOfLifePage = () => {
       const targetFrameTime = speed === 61 ? 1 : 1000 / speed; // 1ms minimum for max speed
 
       if (deltaTime >= targetFrameTime) {
-        game.step();
-        renderer.updateGrid(game.getState().grid);
+        let gpuStepSuccessful = false;
+        
+        // Try to use GPU compute if available
+        if (renderer instanceof GameOfLifeComputeRenderer) {
+          gpuStepSuccessful = renderer.stepOnGPU();
+        }
+        
+        // If GPU compute failed or not available, use CPU simulation
+        if (!gpuStepSuccessful) {
+          game.step();
+          renderer.updateGrid(game.getState().grid);
+        }
+        
         renderer.render();
         updateStats(game);
 
@@ -268,8 +313,19 @@ const GameOfLifePage = () => {
   // Handle step
   const handleStep = () => {
     if (game && renderer && !isRunning) {
-      game.step();
-      renderer.updateGrid(game.getState().grid);
+      let gpuStepSuccessful = false;
+      
+      // Try to use GPU compute if available
+      if (renderer instanceof GameOfLifeComputeRenderer) {
+        gpuStepSuccessful = renderer.stepOnGPU();
+      }
+      
+      // If GPU compute failed or not available, use CPU simulation
+      if (!gpuStepSuccessful) {
+        game.step();
+        renderer.updateGrid(game.getState().grid);
+      }
+      
       renderer.render();
       updateStats(game);
     }
@@ -476,7 +532,7 @@ const GameOfLifePage = () => {
   // Helper function to load grid into game
   const loadGridIntoGame = (
     gameInstance: GameOfLife,
-    rendererInstance: GameOfLifeRenderer,
+    rendererInstance: GameOfLifeRenderer | GameOfLifeComputeRenderer,
     grid: Uint8Array,
     width: number
   ) => {
@@ -891,6 +947,36 @@ const GameOfLifePage = () => {
             builtInPatterns={builtInPatterns}
             generateNoise={generateNoise}
           />
+
+          {/* Renderer Status */}
+          <div className="control-group">
+            <div className="control-label">Renderer</div>
+            <div className={`renderer-status ${rendererType === 'compute' ? 'compute-active' : 'compute-inactive'}`}>
+              {rendererType === 'compute' ? (
+                <>
+                  <span className="status-icon">⚡</span>
+                  <span className="status-text">GPU Compute</span>
+                  <span className="status-hint">(Optimized)</span>
+                </>
+              ) : rendererType === 'regular' ? (
+                <>
+                  <span className="status-icon">💻</span>
+                  <span className="status-text">CPU + GPU Render</span>
+                  <span className="status-hint">(Fallback)</span>
+                </>
+              ) : (
+                <>
+                  <span className="status-icon">⏳</span>
+                  <span className="status-text">Initializing...</span>
+                </>
+              )}
+            </div>
+            {rendererType === 'regular' && (
+              <div className="status-warning">
+                Compute shaders not available. Using CPU simulation.
+              </div>
+            )}
+          </div>
 
           {/* File Save/Load */}
           <FileSaveLoad
