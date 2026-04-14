@@ -41,10 +41,6 @@ const GameOfLifePage = () => {
   } | null>(null);
 
   // Pattern management
-  const [savedPatterns, setSavedPatterns] = useState<
-    Array<{ name: string; grid: Uint8Array; width: number; height: number }>
-  >([]);
-  const [patternName, setPatternName] = useState('');
   const [startingPositionGrid, setStartingPositionGrid] = useState<Uint8Array | null>(null);
   const { metrics } = usePerformanceMonitor({
     enabled: true,
@@ -476,21 +472,6 @@ const GameOfLifePage = () => {
     setIsDrawing(false);
   };
 
-  // Save current pattern
-  const handleSavePattern = () => {
-    if (game && patternName.trim()) {
-      const state = game.getState();
-      const newPattern = {
-        name: patternName.trim(),
-        grid: new Uint8Array(state.grid),
-        width: state.width,
-        height: state.height,
-      };
-      setSavedPatterns([...savedPatterns, newPattern]);
-      setPatternName('');
-    }
-  };
-
   // Save current state to PNG file
   const handleSaveToFile = async (saveStartingPosition = false) => {
     if (!game || !renderer) return;
@@ -553,8 +534,6 @@ const GameOfLifePage = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      alert(`Pattern saved to ${filename}`);
     } catch (error) {
       console.error('Failed to save pattern:', error);
       alert('Failed to save pattern. See console for details.');
@@ -635,7 +614,7 @@ const GameOfLifePage = () => {
               // Wait for next render cycle for grid to resize
               setTimeout(() => {
                 if (game && renderer) {
-                  loadGridIntoGame(game, renderer, grid, width, height);
+                  loadGridIntoGame(game, renderer, grid, width);
                 }
               }, 100);
               return;
@@ -645,7 +624,7 @@ const GameOfLifePage = () => {
           }
 
           // Load pattern into current grid
-          loadGridIntoGame(game, renderer, grid, width, height);
+          loadGridIntoGame(game, renderer, grid, width);
         } catch (error) {
           console.error('Failed to load pattern:', error);
           alert('Failed to load pattern. See console for details.');
@@ -664,8 +643,7 @@ const GameOfLifePage = () => {
     game: GameOfLife,
     renderer: GameOfLifeRenderer,
     grid: Uint8Array,
-    width: number,
-    height: number
+    width: number
   ) => {
     // Clear current grid
     game.clear();
@@ -680,37 +658,6 @@ const GameOfLifePage = () => {
     renderer.updateGrid(game.getState().grid);
     renderer.render();
     updateStats(game);
-
-    alert(`Pattern loaded (${width}x${height})`);
-  };
-
-  // Load a saved pattern
-  const handleLoadPattern = (pattern: {
-    name: string;
-    grid: Uint8Array;
-    width: number;
-    height: number;
-  }) => {
-    if (game && renderer) {
-      // Check if pattern matches current grid size
-      if (pattern.width !== gridSize || pattern.height !== gridSize) {
-        alert(
-          `Pattern size (${pattern.width}x${pattern.height}) doesn't match current grid (${gridSize}x${gridSize}). Please resize grid first.`
-        );
-        return;
-      }
-
-      // Load pattern
-      for (let i = 0; i < pattern.grid.length; i++) {
-        const x = i % gridSize;
-        const y = Math.floor(i / gridSize);
-        game.setCell(x, y, pattern.grid[i] === 1);
-      }
-
-      renderer.updateGrid(game.getState().grid);
-      renderer.render();
-      updateStats(game);
-    }
   };
 
   // Place a pattern at specific grid coordinates
@@ -850,42 +797,6 @@ const GameOfLifePage = () => {
     renderer.render();
     updateStats(game);
   };
-
-  // Load saved patterns from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gameOfLifePatterns');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Convert arrays back to Uint8Array
-        const patterns = parsed.map(
-          (p: { name: string; grid: number[]; width: number; height: number }) => ({
-            ...p,
-            grid: new Uint8Array(p.grid),
-          })
-        );
-        setSavedPatterns(patterns);
-      }
-    } catch (err) {
-      console.warn('Failed to load saved patterns:', err);
-    }
-  }, []);
-
-  // Save patterns to localStorage when they change
-  useEffect(() => {
-    if (savedPatterns.length > 0) {
-      try {
-        // Convert Uint8Array to regular array for JSON serialization
-        const serializable = savedPatterns.map((p) => ({
-          ...p,
-          grid: Array.from(p.grid),
-        }));
-        localStorage.setItem('gameOfLifePatterns', JSON.stringify(serializable));
-      } catch (err) {
-        console.warn('Failed to save patterns:', err);
-      }
-    }
-  }, [savedPatterns]);
 
   // Built-in Game of Life patterns
   const builtInPatterns = [
@@ -1316,74 +1227,24 @@ const GameOfLifePage = () => {
               </div>
             </div>
 
-            {/* Pattern Save/Load - Compact */}
-            <div className="control-group compact-patterns">
-              <div className="input-group compact">
-                <input
-                  type="text"
-                  placeholder="Save pattern..."
-                  value={patternName}
-                  onChange={(e) => setPatternName(e.target.value)}
-                  disabled={!isInitialized || isRunning}
-                  className="pattern-input compact"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && patternName.trim()) {
-                      handleSavePattern();
-                    }
-                  }}
-                />
-                <button
-                  className="button small"
-                  onClick={handleSavePattern}
-                  disabled={!isInitialized || isRunning || !patternName.trim()}
-                  title="Save current pattern"
-                >
-                  💾
-                </button>
-              </div>
-
-              {savedPatterns.length > 0 && (
-                <div className="dropdown-group compact">
-                  <select
-                    className="pattern-dropdown compact"
-                    disabled={!isInitialized || isRunning}
-                    onChange={(e) => {
-                      const index = parseInt(e.target.value);
-                      if (index >= 0 && savedPatterns[index]) {
-                        handleLoadPattern(savedPatterns[index]);
-                      }
-                    }}
-                    value=""
-                  >
-                    <option value="">Load pattern...</option>
-                    {savedPatterns.map((pattern, index) => (
-                      <option key={index} value={index}>
-                        {pattern.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* File Save/Load - Compact */}
+            {/* File Save/Load - Simplified */}
             <div className="control-group compact-patterns">
               <div className="button-group compact">
-                <button
-                  className="button small"
-                  onClick={() => handleSaveToFile(false)}
-                  disabled={!isInitialized || isRunning}
-                  title="Save current state to PNG file"
-                >
-                  📁 Current
-                </button>
                 <button
                   className="button small"
                   onClick={() => handleSaveToFile(true)}
                   disabled={!isInitialized || isRunning || !startingPositionGrid}
                   title="Save starting position to PNG file"
                 >
-                  📁 Starting
+                  💾 Save Starting
+                </button>
+                <button
+                  className="button small"
+                  onClick={() => handleSaveToFile(false)}
+                  disabled={!isInitialized || isRunning}
+                  title="Save current state to PNG file"
+                >
+                  💾 Save Current
                 </button>
                 <button
                   className="button small"
@@ -1393,9 +1254,6 @@ const GameOfLifePage = () => {
                 >
                   📂 Load
                 </button>
-              </div>
-              <div className="file-hint">
-                PNG files preserve grid state. Load any image to convert to pattern.
               </div>
             </div>
           </div>
