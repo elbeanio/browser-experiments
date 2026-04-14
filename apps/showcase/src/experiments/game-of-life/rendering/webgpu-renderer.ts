@@ -107,15 +107,15 @@ export class GameOfLifeRenderer {
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
       });
 
-      // Create sampler with clamp-to-edge addressing (no tiling)
+      // Create sampler with repeat addressing for tiling
       this.sampler = this.device.createSampler({
         magFilter: 'nearest',
         minFilter: 'nearest',
-        addressModeU: 'clamp-to-edge',
-        addressModeV: 'clamp-to-edge',
+        addressModeU: 'repeat',
+        addressModeV: 'repeat',
       });
 
-      // Create shader module
+      // Create shader module - use sampler repeat mode for tiling (Firefox compatible)
       const shaderCode = `
         struct VertexOutput {
           @builtin(position) position: vec4f,
@@ -161,7 +161,7 @@ export class GameOfLifeRenderer {
         fn fragment_main(input: VertexOutput) -> @location(0) vec4f {
           // Scale UVs for zoom/tiling
           // uv_scale = canvasSize / (gridSize * cellSize)  [INVERSE!]
-          // If scale > 1: texture shows black border (zoom OUT)
+          // If scale > 1: texture repeats (tiling, zoom OUT)
           // If scale < 1: texture is magnified (zoom IN, shows portion)
           let scaled_uv_x: f32 = input.uv.x * uniforms.uv_scale_x;
           let scaled_uv_y: f32 = input.uv.y * uniforms.uv_scale_y;
@@ -462,7 +462,7 @@ export class GameOfLifeRenderer {
     // Grid pixel size = gridSize * cellSize
     // UV scale = canvasSize / gridPixelSize (INVERSE relationship!)
     // Larger cell size → smaller uv_scale → texture appears larger (zoom IN)
-    // Smaller cell size → larger uv_scale → texture appears smaller, shows border (zoom OUT)
+    // Smaller cell size → larger uv_scale → texture appears smaller, tiles (zoom OUT)
     const canvasWidth = this.canvas.clientWidth || this.canvas.width || 512;
     const canvasHeight = this.canvas.clientHeight || this.canvas.height || 512;
     const uvScaleX = canvasWidth / (this.width * this.cellSize);
