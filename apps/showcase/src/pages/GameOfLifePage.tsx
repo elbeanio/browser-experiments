@@ -478,8 +478,11 @@ const GameOfLifePage = () => {
 
     try {
       const state = game.getState();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `game-of-life-${timestamp}.png`;
+      const type = saveStartingPosition ? 'initial' : 'current';
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toISOString().split('T')[1].replace(/[:.]/g, '-').slice(0, -1);
+      const filename = `gol-${type}-${dateStr}Z${timeStr}.png`;
 
       // Get the current grid state (either current or starting position)
       const gridToSave =
@@ -903,11 +906,11 @@ const GameOfLifePage = () => {
             <div className="transport-controls">
               <button
                 className="tool-button"
-                onClick={handleStop}
-                disabled={!isInitialized || !isRunning}
-                title="Stop simulation"
+                onClick={() => (isRunning ? handleStop() : handleRun())}
+                disabled={!isInitialized}
+                title={isRunning ? 'Pause simulation' : 'Run simulation'}
               >
-                ▢
+                {isRunning ? '⏸️' : '▶️'}
               </button>
               <button
                 className="tool-button"
@@ -916,14 +919,6 @@ const GameOfLifePage = () => {
                 title="Step one generation"
               >
                 ▷|
-              </button>
-              <button
-                className="tool-button"
-                onClick={handleRun}
-                disabled={!isInitialized || isRunning}
-                title="Run simulation"
-              >
-                ▷
               </button>
               <button
                 className="tool-button"

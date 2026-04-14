@@ -354,11 +354,18 @@
 @media (max-width: 1000px) {
   .game-of-life-container {
     grid-template-columns: 1fr;
-    min-height: calc(100vh - 250px); /* More space for mobile */
+    min-height: calc(100vh - 250px);
   }
+
   .game-of-life-controls {
     width: auto;
     order: 2;
+  }
+
+  .transport-controls {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: var(--spacing-sm);
   }
 
   .sub-nav-content {
@@ -369,6 +376,12 @@
 
   .sub-nav-actions {
     justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .game-of-life-canvas {
+    min-height: 400px;
   }
 }
 
@@ -379,6 +392,7 @@
   align-items: center;
   width: 100%;
   height: 100%;
+  min-height: 500px;
   align-self: start; /* Align with controls panel top */
   overflow: hidden;
 }
@@ -645,11 +659,13 @@
   .header-content {
     flex-direction: column;
     gap: var(--spacing-md);
+    text-align: center;
   }
 
   .nav-links {
     width: 100%;
     justify-content: center;
+    flex-wrap: wrap;
   }
 
   .experiment-card-footer {
@@ -664,6 +680,39 @@
 
   .game-of-life-container {
     grid-template-columns: 1fr;
+  }
+
+  .game-of-life-header h1 {
+    font-size: 1.5rem;
+    line-height: 1.3;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .sub-nav-bar {
+    margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .transport-controls {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .transport-controls .tool-button {
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
+  }
+
+  .game-of-life-toolstrip .tool-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .game-of-life-toolstrip .tool-button {
+    width: 34px;
+    height: 34px;
+    font-size: 0.9rem;
   }
 }
 
@@ -697,6 +746,78 @@
 
   .button {
     width: 100%;
+  }
+
+  .game-of-life-header h1 {
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+
+  .sub-nav-content {
+    gap: var(--spacing-sm);
+  }
+
+  .transport-controls {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .transport-controls .tool-button {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .sub-nav-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+
+  .sub-nav-actions .button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .game-of-life-toolstrip {
+    margin: var(--spacing-md);
+    padding: var(--spacing-sm);
+  }
+
+  .game-of-life-toolstrip .tool-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+
+  .game-of-life-toolstrip .tool-button {
+    width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
+  }
+
+  .game-of-life-toolstrip .tool-section-label {
+    font-size: 0.75rem;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .control-group.compact-patterns .button-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .control-group.compact-patterns .button {
+    width: auto;
+    flex: 1;
+    min-width: 80px;
+    font-size: 0.8rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .game-of-life-canvas {
+    min-height: 300px;
   }
 }
 
@@ -1157,7 +1278,7 @@
   margin-bottom: var(--spacing-lg);
 }
 
-/* Responsive adjustments */
+/* Responsive adjustments for toolstrip */
 @media (max-width: 1000px) {
   .game-of-life-toolstrip {
     position: static;
@@ -1166,6 +1287,20 @@
     margin: var(--spacing-lg);
     top: auto;
     right: auto;
+    background: rgba(30, 41, 59, 0.95);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+  }
+
+  .game-of-life-toolstrip .tool-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .game-of-life-toolstrip .tool-button {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
   }
 
   .game-of-life-header {
@@ -1180,6 +1315,7 @@
 
   .sub-nav-actions {
     justify-content: center;
+    flex-wrap: wrap;
   }
 }
 
