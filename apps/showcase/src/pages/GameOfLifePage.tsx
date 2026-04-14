@@ -54,9 +54,9 @@ const GameOfLifePage = () => {
     setGeneration,
     setAliveCount,
     setDensity,
+    setSimulationFps,
     toggleAnalyticsModal,
     toggleBenchmarkModal,
-    toggleFullscreen,
   } = experimentActions;
 
   // Game of Life specific state
@@ -86,6 +86,8 @@ const GameOfLifePage = () => {
   // Animation state
   const lastStepTimeRef = useRef(0);
   const animationFrameRef = useRef<number>(0);
+  const simulationFpsRef = useRef<number[]>([]); // Store last N frame times for FPS calculation
+  const lastFpsUpdateRef = useRef(0);
 
   // Built-in patterns
   const builtInPatterns = [
@@ -164,8 +166,8 @@ const GameOfLifePage = () => {
           width: gridSize,
           height: gridSize,
           cellSize,
-          aliveColor: [0, 1, 0, 1],
-          deadColor: [0.1, 0.1, 0.1, 1],
+          aliveColor: [1, 1, 1, 1], // White cells
+          deadColor: [0.1, 0.1, 0.1, 1], // Dark gray background
         });
 
         await newRenderer.initialize();
@@ -214,6 +216,27 @@ const GameOfLifePage = () => {
         renderer.render();
         updateStats(game);
 
+        // Track simulation FPS (actual updates per second)
+        const frameTime = timestamp - lastStepTimeRef.current;
+        if (frameTime > 0) {
+          const currentFps = 1000 / frameTime;
+          simulationFpsRef.current.push(currentFps);
+          
+          // Keep only last 10 FPS measurements
+          if (simulationFpsRef.current.length > 10) {
+            simulationFpsRef.current.shift();
+          }
+          
+          // Update simulation FPS display every 500ms
+          if (timestamp - lastFpsUpdateRef.current > 500) {
+            const avgFps = simulationFpsRef.current.length > 0
+              ? simulationFpsRef.current.reduce((sum, fps) => sum + fps, 0) / simulationFpsRef.current.length
+              : 0;
+            setSimulationFps(Math.round(avgFps * 10) / 10); // Round to 1 decimal
+            lastFpsUpdateRef.current = timestamp;
+          }
+        }
+
         lastStepTimeRef.current = timestamp;
       }
 
@@ -226,6 +249,9 @@ const GameOfLifePage = () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      // Reset FPS tracking when animation stops
+      simulationFpsRef.current = [];
+      setSimulationFps(0);
     };
   }, [isRunning, game, renderer, speed]);
 
@@ -658,21 +684,29 @@ const GameOfLifePage = () => {
     }
   };
 
-  // Handle key events
+  // Handle fullscreen change events
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        toggleFullscreen();
-      }
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, toggleFullscreen]);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // Handle fullscreen
   const handleEnterFullscreen = () => {
-    const elem = document.documentElement;
+    const elem = canvasRef.current?.parentElement;
+    if (!elem) return;
+    
     if (elem.requestFullscreen) {
       elem.requestFullscreen();
     } else if ((elem as any).webkitRequestFullscreen) {
