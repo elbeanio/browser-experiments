@@ -1,12 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { GameOfLife } from '../experiments/game-of-life/simulation/game-of-life';
 import { GameOfLifeRenderer } from '../experiments/game-of-life/rendering/webgpu-renderer';
-import {
-  usePerformanceMonitor,
-  PerformanceVisualization,
-  BenchmarkMode,
-} from '../experiments/game-of-life/performance';
+import { usePerformanceMonitor, BenchmarkMode } from '../experiments/game-of-life/performance';
 
 const GameOfLifePage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -17,19 +12,22 @@ const GameOfLifePage = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Settings
-  const [gridSize, setGridSize] = useState(64);
-  const [cellSize, setCellSize] = useState(4);
-  const [speed, setSpeed] = useState(10);
-  // Simple black/white theme - remove color theme selection
-  const theme = 'simple' as const;
+  const [gridSize, setGridSize] = useState(256); // Massive grid for insane tiling detail
+  const [cellSize, setCellSize] = useState(1); // Tiny 1px cells for maximum density
+  const [speed, setSpeed] = useState(30); // Default to 30 FPS (middle of range 1-60, unlimited is 61)
 
   // Stats
   const [generation, setGeneration] = useState(0);
   const [aliveCount, setAliveCount] = useState(0);
   const [density, setDensity] = useState(0);
-  // Performance monitoring
-  const [showPerformancePanel, setShowPerformancePanel] = useState(false);
-  const [showBenchmarkMode, setShowBenchmarkMode] = useState(false);
+  // Simulation FPS tracking
+  const [simulationFps, setSimulationFps] = useState(0);
+  const stepTimesRef = useRef<number[]>([]);
+  // Modal states
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showBenchmarkModal, setShowBenchmarkModal] = useState(false);
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -47,7 +45,7 @@ const GameOfLifePage = () => {
     Array<{ name: string; grid: Uint8Array; width: number; height: number }>
   >([]);
   const [patternName, setPatternName] = useState('');
-  const { metrics, reset: resetPerformance } = usePerformanceMonitor({
+  const { metrics } = usePerformanceMonitor({
     enabled: true,
     updateInterval: 1000,
     warningThresholds: {
@@ -80,7 +78,7 @@ const GameOfLifePage = () => {
         const newGame = new GameOfLife({
           width: gridSize,
           height: gridSize,
-          initialDensity: 0.3,
+          initialDensity: 0.4, // Slightly denser for better background pattern
           wrapEdges: true,
         });
 
@@ -130,7 +128,8 @@ const GameOfLifePage = () => {
 
   // Update frame interval when speed changes
   useEffect(() => {
-    frameIntervalRef.current = 1000 / speed;
+    // 61 represents "unlimited" (process every frame)
+    frameIntervalRef.current = speed === 61 ? 0 : 1000 / speed;
   }, [speed]);
 
   // Update stats
@@ -147,13 +146,27 @@ const GameOfLifePage = () => {
       return;
     }
 
-    // FPS calculation is now handled by the performance monitor
-
-    // Update simulation at target FPS
-    if (currentTime - lastStepTimeRef.current >= frameIntervalRef.current) {
+    // Update simulation at target FPS (or every frame if unlimited)
+    const shouldStep =
+      speed === 61 || currentTime - lastStepTimeRef.current >= frameIntervalRef.current;
+    if (shouldStep) {
       game.step();
       renderer.updateGrid(game.getState().grid);
       updateStats(game);
+
+      // Track simulation FPS
+      stepTimesRef.current.push(currentTime);
+      // Keep only last second of data
+      const oneSecondAgo = currentTime - 1000;
+      stepTimesRef.current = stepTimesRef.current.filter((time) => time > oneSecondAgo);
+      // Calculate FPS
+      if (stepTimesRef.current.length > 1) {
+        const timeSpan =
+          stepTimesRef.current[stepTimesRef.current.length - 1] - stepTimesRef.current[0];
+        const fps = timeSpan > 0 ? ((stepTimesRef.current.length - 1) * 1000) / timeSpan : 0;
+        setSimulationFps(Math.round(fps));
+      }
+
       lastStepTimeRef.current = currentTime;
     }
 
@@ -197,7 +210,7 @@ const GameOfLifePage = () => {
     }
   }, [drawMode, selectedPattern, isRunning, renderer]);
 
-  // Handle ESC key to exit drawing mode or pattern placement
+  // Handle ESC key to exit drawing mode, pattern placement, or fullscreen
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -207,12 +220,15 @@ const GameOfLifePage = () => {
         if (selectedPattern !== null) {
           setSelectedPattern(null);
         }
+        if (isFullscreen) {
+          handleExitFullscreen();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [drawMode, selectedPattern]);
+  }, [drawMode, selectedPattern, isFullscreen]);
 
   // Control handlers
   const handleRun = () => setIsRunning(true);
@@ -227,23 +243,98 @@ const GameOfLifePage = () => {
   };
   const handleReset = () => {
     if (game && renderer) {
-      game.randomize(0.3); // Reset to initial randomized state
+      game.randomize(0.4); // Reset to initial randomized state
       renderer.updateGrid(game.getState().grid);
       renderer.render();
       updateStats(game);
     }
   };
 
+  // Fullscreen handlers
+  const handleEnterFullscreen = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      if (canvas.requestFullscreen) {
+        canvas.requestFullscreen();
+      } else if ((canvas as any).webkitRequestFullscreen) {
+        (canvas as any).webkitRequestFullscreen();
+      } else if ((canvas as any).mozRequestFullScreen) {
+        (canvas as any).mozRequestFullScreen();
+      } else if ((canvas as any).msRequestFullscreen) {
+        (canvas as any).msRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    }
+  };
+
+  const handleExitFullscreen = () => {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if ((document as any).webkitExitFullscreen) {
+      (document as any).webkitExitFullscreen();
+    } else if ((document as any).mozCancelFullScreen) {
+      (document as any).mozCancelFullScreen();
+    } else if ((document as any).msExitFullscreen) {
+      (document as any).msExitFullscreen();
+    }
+    setIsFullscreen(false);
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
   const handleGridSizeChange = (newSize: number) => {
     setIsRunning(false); // Stop simulation when changing grid size
-    setGridSize(newSize);
+
+    if (newSize === 1024) {
+      // 1024 represents "max" (canvas) - use calculated canvas size
+      const canvasSize = calculateGridSizeFromCanvas();
+      setGridSize(canvasSize);
+    } else {
+      setGridSize(newSize);
+    }
     // Effect will recreate simulation and renderer with new size
   };
+  // Calculate grid size from canvas dimensions
+  const calculateGridSizeFromCanvas = () => {
+    if (!canvasRef.current) return gridSize;
+    const canvas = canvasRef.current;
+    const width = canvas.width;
+    const height = canvas.height;
+    // Use the smaller dimension to ensure square grid fits
+    const canvasSize = Math.min(width, height);
+    // Calculate grid size based on cell size (round to nearest multiple of 16)
+    const calculatedSize = Math.floor(canvasSize / cellSize);
+    return Math.max(16, Math.floor(calculatedSize / 16) * 16); // Round to nearest multiple of 16, min 16
+  };
+
   const handleCellSizeChange = (newSize: number) => {
     setCellSize(newSize);
     if (renderer) {
       renderer.setCellSize(newSize);
       renderer.render();
+    }
+    // If grid is set to "max" (canvas), update grid size based on new cell size
+    if (gridSize >= 1024) {
+      const newGridSize = calculateGridSizeFromCanvas();
+      setGridSize(newGridSize);
+      // Effect will recreate simulation with new size
     }
   };
 
@@ -676,101 +767,128 @@ const GameOfLifePage = () => {
               </ul>
             </div>
           </div>
-
-          <div className="experiment-actions">
-            <Link to="/" className="experiment-link">
-              ← Back to Home
-            </Link>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container">
-      <div className="experiment-detail">
-        <div className="experiment-detail-header">
+    <div className="game-of-life-fullscreen">
+      {/* Header with title and sub-nav */}
+      <div className="game-of-life-header">
+        <div className="header-title">
           <h1>Conway&apos;s Game of Life</h1>
         </div>
 
-        <div className="game-of-life-container">
-          <div className="game-of-life-canvas-container">
-            <canvas
-              ref={canvasRef}
-              className="game-of-life-canvas"
-              style={{
-                cursor: drawMode !== null || selectedPattern !== null ? 'crosshair' : 'default',
-              }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseLeave}
-            />
-          </div>
-
-          <div className="game-of-life-controls compact">
-            {/* Transport Controls */}
-            <div className="control-group">
-              <div className="transport-controls">
-                <button
-                  className="tool-button"
-                  onClick={handleStop}
-                  disabled={!isInitialized || !isRunning}
-                  title="Stop simulation"
-                >
-                  ▢
-                </button>
-                <button
-                  className="tool-button"
-                  onClick={handleStep}
-                  disabled={!isInitialized || isRunning}
-                  title="Step one generation"
-                >
-                  ▷|
-                </button>
-                <button
-                  className="tool-button"
-                  onClick={handleRun}
-                  disabled={!isInitialized || isRunning}
-                  title="Run simulation"
-                >
-                  ▷
-                </button>
-                <button
-                  className="tool-button"
-                  onClick={handleReset}
-                  disabled={!isInitialized}
-                  title="Reset to initial state"
-                >
-                  ↻
-                </button>
-              </div>
+        {/* Sub-nav bar with transport controls and modal buttons */}
+        <div className="sub-nav-bar">
+          <div className="sub-nav-content">
+            <div className="transport-controls">
+              <button
+                className="tool-button"
+                onClick={handleStop}
+                disabled={!isInitialized || !isRunning}
+                title="Stop simulation"
+              >
+                ▢
+              </button>
+              <button
+                className="tool-button"
+                onClick={handleStep}
+                disabled={!isInitialized || isRunning}
+                title="Step one generation"
+              >
+                ▷|
+              </button>
+              <button
+                className="tool-button"
+                onClick={handleRun}
+                disabled={!isInitialized || isRunning}
+                title="Run simulation"
+              >
+                ▷
+              </button>
+              <button
+                className="tool-button"
+                onClick={handleReset}
+                disabled={!isInitialized}
+                title="Reset to initial state"
+              >
+                ↻
+              </button>
             </div>
 
+            <div className="sub-nav-actions">
+              <button
+                className={`button secondary ${showAnalyticsModal ? 'active' : ''}`}
+                onClick={() => setShowAnalyticsModal(!showAnalyticsModal)}
+                disabled={!isInitialized}
+              >
+                {showAnalyticsModal ? 'Hide Analytics' : 'Analytics'}
+              </button>
+              <button
+                className={`button secondary ${showBenchmarkModal ? 'active' : ''}`}
+                onClick={() => setShowBenchmarkModal(!showBenchmarkModal)}
+                disabled={!isInitialized}
+              >
+                {showBenchmarkModal ? 'Hide Benchmark' : 'Benchmark'}
+              </button>
+              <button
+                className={`button secondary ${isFullscreen ? 'active' : ''}`}
+                onClick={isFullscreen ? handleExitFullscreen : handleEnterFullscreen}
+                disabled={!isInitialized}
+                title={isFullscreen ? 'Exit fullscreen (ESC)' : 'Enter fullscreen'}
+              >
+                {isFullscreen ? '⤓' : '⤢'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Canvas IS the background */}
+      <canvas
+        ref={canvasRef}
+        className="game-of-life-canvas"
+        style={{
+          cursor: drawMode !== null || selectedPattern !== null ? 'crosshair' : 'default',
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      />
+      {/* Tool strip - appears conditionally when stopped */}
+      {!isRunning && (
+        <div className="game-of-life-toolstrip">
+          <div className="toolstrip-content">
             {/* Grid Configuration - Compact */}
             <div className="control-group compact-sliders">
               <div className="slider-group compact">
                 <label htmlFor="gridSize">
-                  Grid: {gridSize}×{gridSize}
+                  Grid: {gridSize >= 1024 ? 'max' : `${gridSize}×${gridSize}`}
                 </label>
                 <input
                   type="range"
                   id="gridSize"
                   min="16"
-                  max="256"
+                  max="1024"
                   step="16"
-                  value={gridSize}
+                  value={gridSize >= 1024 ? 1024 : gridSize}
                   onChange={(e) => handleGridSizeChange(parseInt(e.target.value))}
                   disabled={!isInitialized}
                 />
+                {gridSize >= 1024 && (
+                  <div className="slider-hint">
+                    Canvas size: {calculateGridSizeFromCanvas()}×{calculateGridSizeFromCanvas()}
+                  </div>
+                )}
               </div>
               <div className="slider-group compact">
                 <label htmlFor="cellSize">Cell: {cellSize}px</label>
                 <input
                   type="range"
                   id="cellSize"
-                  min="2"
+                  min="1"
                   max="16"
                   step="1"
                   value={cellSize}
@@ -779,31 +897,26 @@ const GameOfLifePage = () => {
                 />
               </div>
               <div className="slider-group compact">
-                <label htmlFor="speed">Speed: {speed}fps</label>
+                <label htmlFor="speed">Speed: {speed === 61 ? 'unlimited' : `${speed}fps`}</label>
                 <input
                   type="range"
                   id="speed"
                   min="1"
-                  max="60"
+                  max="61"
                   step="1"
                   value={speed}
                   onChange={(e) => setSpeed(parseInt(e.target.value))}
                   disabled={!isInitialized}
                 />
+                {speed === 61 && <div className="slider-hint">Process every frame</div>}
               </div>
             </div>
 
-            {/* Freehand Drawing Tools - 4x2 grid */}
+            {/* Freehand Tools - 4x2 grid */}
             <div className="control-group tool-section">
+              <div className="tool-section-label">Freehand Tools</div>
               <div className="tool-grid">
-                <button
-                  className={`tool-button ${drawMode === 'draw' ? 'active' : ''}`}
-                  onClick={() => setDrawMode(drawMode === 'draw' ? null : 'draw')}
-                  disabled={!isInitialized || isRunning}
-                  title="Draw (click and drag to add cells)"
-                >
-                  ✏️
-                </button>
+                {/* Row 1: Drawing tools */}
                 <button
                   className={`tool-button ${drawMode === 'erase' ? 'active' : ''}`}
                   onClick={() => setDrawMode(drawMode === 'erase' ? null : 'erase')}
@@ -813,6 +926,56 @@ const GameOfLifePage = () => {
                   🗑️
                 </button>
                 <button
+                  className="tool-button"
+                  onClick={() => generateNoise('uniform')}
+                  disabled={!isInitialized || isRunning}
+                  title="Uniform noise (30% density)"
+                >
+                  🎲
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('sparse')}
+                  disabled={!isInitialized || isRunning}
+                  title="Sparse noise (10% density)"
+                >
+                  ✨
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('center')}
+                  disabled={!isInitialized || isRunning}
+                  title="Center-dense noise (higher density in middle)"
+                >
+                  🎯
+                </button>
+
+                {/* Row 2: More noise types and brush sizes */}
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('edges')}
+                  disabled={!isInitialized || isRunning}
+                  title="Edge-dense noise (higher density at edges)"
+                >
+                  🏁
+                </button>
+                <button
+                  className="tool-button"
+                  onClick={() => generateNoise('clustered')}
+                  disabled={!isInitialized || isRunning}
+                  title="Clustered noise (groups of cells)"
+                >
+                  🌌
+                </button>
+                <button
+                  className={`tool-button ${drawMode === 'draw' ? 'active' : ''}`}
+                  onClick={() => setDrawMode(drawMode === 'draw' ? null : 'draw')}
+                  disabled={!isInitialized || isRunning}
+                  title="Draw (click and drag to add cells)"
+                >
+                  ✏️
+                </button>
+                <button
                   className={`tool-button ${brushSize === 'single' ? 'active' : ''}`}
                   onClick={() => setBrushSize('single')}
                   disabled={!isInitialized || isRunning || drawMode === null}
@@ -820,6 +983,8 @@ const GameOfLifePage = () => {
                 >
                   ●
                 </button>
+
+                {/* Row 3: Brush sizes */}
                 <button
                   className={`tool-button ${brushSize === '3x3' ? 'active' : ''}`}
                   onClick={() => setBrushSize('3x3')}
@@ -828,7 +993,6 @@ const GameOfLifePage = () => {
                 >
                   ◼
                 </button>
-
                 <button
                   className={`tool-button ${brushSize === '5x5' ? 'active' : ''}`}
                   onClick={() => setBrushSize('5x5')}
@@ -839,56 +1003,91 @@ const GameOfLifePage = () => {
                 </button>
                 <div className="tool-spacer"></div>
                 <div className="tool-spacer"></div>
-                <div className="tool-spacer"></div>
               </div>
-              <div className="tool-section-label">Freehand Tools</div>
             </div>
 
             {/* Pattern Brushes - 4x2 grid */}
             <div className="control-group tool-section">
+              <div className="tool-section-label">Pattern Brushes</div>
               <div className="tool-grid">
-                {/* Row 1 - Built-in patterns */}
-                {builtInPatterns.slice(0, 4).map((pattern, index) => (
-                  <button
-                    key={index}
-                    className={`tool-button ${selectedPattern?.name === pattern.name ? 'active' : ''}`}
-                    onClick={() => {
-                      if (selectedPattern?.name === pattern.name) {
-                        setSelectedPattern(null);
-                      } else {
-                        setSelectedPattern(pattern);
-                        setDrawMode(null);
-                      }
-                    }}
-                    disabled={!isInitialized || isRunning}
-                    title={`${pattern.name} (${pattern.width}×${pattern.height})`}
-                  >
-                    {pattern.name === 'Glider' && '🛸'}
-                    {pattern.name === 'Blinker' && '💡'}
-                    {pattern.name === 'Toad' && '🐸'}
-                    {pattern.name === 'Beacon' && '🏮'}
-                  </button>
-                ))}
+                {/* Row 1: Glider, Blinker, Toad, Pulsar */}
+                <button
+                  className={`tool-button ${selectedPattern?.name === 'Glider' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (selectedPattern?.name === 'Glider') {
+                      setSelectedPattern(null);
+                    } else {
+                      setSelectedPattern(builtInPatterns.find((p) => p.name === 'Glider') || null);
+                      setDrawMode(null);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Glider (3×3)"
+                >
+                  🛸
+                </button>
+                <button
+                  className={`tool-button ${selectedPattern?.name === 'Blinker' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (selectedPattern?.name === 'Blinker') {
+                      setSelectedPattern(null);
+                    } else {
+                      setSelectedPattern(builtInPatterns.find((p) => p.name === 'Blinker') || null);
+                      setDrawMode(null);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Blinker (3×1)"
+                >
+                  💡
+                </button>
+                <button
+                  className={`tool-button ${selectedPattern?.name === 'Toad' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (selectedPattern?.name === 'Toad') {
+                      setSelectedPattern(null);
+                    } else {
+                      setSelectedPattern(builtInPatterns.find((p) => p.name === 'Toad') || null);
+                      setDrawMode(null);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Toad (4×2)"
+                >
+                  🐸
+                </button>
+                <button
+                  className={`tool-button ${selectedPattern?.name === 'Pulsar' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (selectedPattern?.name === 'Pulsar') {
+                      setSelectedPattern(null);
+                    } else {
+                      setSelectedPattern(builtInPatterns.find((p) => p.name === 'Pulsar') || null);
+                      setDrawMode(null);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Pulsar (13×13)"
+                >
+                  💓
+                </button>
 
-                {/* Row 2 - More patterns and actions */}
-                {builtInPatterns.slice(4, 5).map((pattern, index) => (
-                  <button
-                    key={index + 4}
-                    className={`tool-button ${selectedPattern?.name === pattern.name ? 'active' : ''}`}
-                    onClick={() => {
-                      if (selectedPattern?.name === pattern.name) {
-                        setSelectedPattern(null);
-                      } else {
-                        setSelectedPattern(pattern);
-                        setDrawMode(null);
-                      }
-                    }}
-                    disabled={!isInitialized || isRunning}
-                    title={`${pattern.name} (${pattern.width}×${pattern.height})`}
-                  >
-                    {pattern.name === 'Pulsar' && '💓'}
-                  </button>
-                ))}
+                {/* Row 2: Beacon and Clear */}
+                <button
+                  className={`tool-button ${selectedPattern?.name === 'Beacon' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (selectedPattern?.name === 'Beacon') {
+                      setSelectedPattern(null);
+                    } else {
+                      setSelectedPattern(builtInPatterns.find((p) => p.name === 'Beacon') || null);
+                      setDrawMode(null);
+                    }
+                  }}
+                  disabled={!isInitialized || isRunning}
+                  title="Beacon (4×4)"
+                >
+                  🏮
+                </button>
                 <button
                   className="tool-button"
                   onClick={() => {
@@ -906,51 +1105,9 @@ const GameOfLifePage = () => {
                 >
                   🧹
                 </button>
-                <button
-                  className="tool-button"
-                  onClick={() => generateNoise('uniform')}
-                  disabled={!isInitialized || isRunning}
-                  title="Uniform noise (30% density)"
-                >
-                  🎲
-                </button>
-                <button
-                  className="tool-button"
-                  onClick={() => generateNoise('clustered')}
-                  disabled={!isInitialized || isRunning}
-                  title="Clustered noise (groups of cells)"
-                >
-                  🌌
-                </button>
-
-                {/* Row 3 - More noise types */}
-                <button
-                  className="tool-button"
-                  onClick={() => generateNoise('sparse')}
-                  disabled={!isInitialized || isRunning}
-                  title="Sparse noise (10% density)"
-                >
-                  ✨
-                </button>
-                <button
-                  className="tool-button"
-                  onClick={() => generateNoise('center')}
-                  disabled={!isInitialized || isRunning}
-                  title="Center-dense noise (higher density in middle)"
-                >
-                  🎯
-                </button>
-                <button
-                  className="tool-button"
-                  onClick={() => generateNoise('edges')}
-                  disabled={!isInitialized || isRunning}
-                  title="Edge-dense noise (higher density at edges)"
-                >
-                  🏁
-                </button>
+                <div className="tool-spacer"></div>
                 <div className="tool-spacer"></div>
               </div>
-              <div className="tool-section-label">Pattern Brushes</div>
             </div>
 
             {/* Pattern Save/Load - Compact */}
@@ -1003,151 +1160,129 @@ const GameOfLifePage = () => {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Analytics Modal - Combines stats and metrics */}
+      {showAnalyticsModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Simulation Analytics</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowAnalyticsModal(false)}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="stats-grid">
+                <div className="stat-item">
+                  <div className="stat-value">{generation}</div>
+                  <div className="stat-label">Generation</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{aliveCount}</div>
+                  <div className="stat-label">Alive Cells</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{(density * 100).toFixed(1)}%</div>
+                  <div className="stat-label">Density</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{simulationFps}</div>
+                  <div className="stat-label">Simulation FPS</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{metrics.fps}</div>
+                  <div className="stat-label">Rendering FPS</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{metrics.frameTime.toFixed(1)}</div>
+                  <div className="stat-label">Frame Time (ms)</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">
+                    {metrics.memoryUsage !== null ? `${metrics.memoryUsage.toFixed(1)}%` : 'N/A'}
+                  </div>
+                  <div className="stat-label">Memory</div>
+                </div>
+              </div>
 
-          <div className="control-group">
-            <h3>Performance Monitoring</h3>
-            <div className="button-group">
-              <button
-                className={`button secondary ${showPerformancePanel ? 'active' : ''}`}
-                onClick={() => setShowPerformancePanel(!showPerformancePanel)}
-                disabled={!isInitialized}
-              >
-                {showPerformancePanel ? 'Hide Metrics' : 'Show Metrics'}
-              </button>
-              <button
-                className={`button secondary ${showBenchmarkMode ? 'active' : ''}`}
-                onClick={() => setShowBenchmarkMode(!showBenchmarkMode)}
-                disabled={!isInitialized}
-              >
-                {showBenchmarkMode ? 'Hide Benchmark' : 'Benchmark Mode'}
-              </button>
-              <button
-                className="button secondary"
-                onClick={resetPerformance}
-                disabled={!isInitialized}
-              >
-                Reset Metrics
+              <div className="mt-4">
+                <h4>Simulation Info</h4>
+                <div className="simulation-info">
+                  <div className="info-row">
+                    <span className="info-label">Grid Size:</span>
+                    <span className="info-value">
+                      {gridSize}×{gridSize}
+                    </span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">Cell Size:</span>
+                    <span className="info-value">{cellSize}px</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">Speed:</span>
+                    <span className="info-value">{speed} FPS</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">Status:</span>
+                    <span
+                      className={`info-value ${isRunning ? 'status-running' : 'status-paused'}`}
+                    >
+                      {isRunning ? 'Running' : 'Paused'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="button secondary" onClick={() => setShowAnalyticsModal(false)}>
+                Close
               </button>
             </div>
           </div>
         </div>
-
-        <div className="stats-grid">
-          <div className="stat-item">
-            <div className="stat-value">{generation}</div>
-            <div className="stat-label">Generation</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{aliveCount}</div>
-            <div className="stat-label">Alive Cells</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{(density * 100).toFixed(1)}%</div>
-            <div className="stat-label">Density</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{metrics.fps}</div>
-            <div className="stat-label">FPS</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{metrics.frameTime.toFixed(1)}</div>
-            <div className="stat-label">Frame Time (ms)</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">
-              {metrics.memoryUsage !== null ? `${metrics.memoryUsage.toFixed(1)}%` : 'N/A'}
+      )}
+      {/* Benchmark Modal */}
+      {showBenchmarkModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Benchmark Mode</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowBenchmarkModal(false)}
+                title="Close"
+              >
+                ×
+              </button>
             </div>
-            <div className="stat-label">Memory</div>
+            <div className="modal-body">
+              <BenchmarkMode
+                currentSettings={{
+                  gridSize,
+                  cellSize,
+                  speed,
+                  theme: 'simple',
+                }}
+                onBenchmarkComplete={(results) => {
+                  console.warn('Benchmark completed:', results);
+                }}
+              />
+            </div>
+            <div className="modal-footer">
+              <button className="button secondary" onClick={() => setShowBenchmarkModal(false)}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
-
-        {showPerformancePanel && (
-          <div className="performance-panel mt-4">
-            <PerformanceVisualization
-              metrics={metrics}
-              title="Game of Life Performance"
-              showDetails={true}
-              showWarnings={true}
-            />
-          </div>
-        )}
-
-        {showBenchmarkMode && (
-          <div className="benchmark-panel mt-4">
-            <BenchmarkMode
-              currentSettings={{
-                gridSize,
-                cellSize,
-                speed,
-                theme,
-              }}
-              onBenchmarkComplete={(results) => {
-                console.warn('Benchmark completed:', results);
-              }}
-            />
-          </div>
-        )}
-
-        <div className={`status-panel ${isRunning ? 'running' : 'paused'}`}>
-          <h4>Status: {isRunning ? 'Running' : 'Paused'}</h4>
-          <p>
-            {isRunning
-              ? 'Simulation is running. Click Stop to pause.'
-              : 'Simulation is stopped. Click Run to begin or Step to advance one generation.'}
-          </p>
-          <p className="mt-1 text-muted">Click on the grid to toggle cells (when paused).</p>
-        </div>
-
-        <div className="experiment-content mt-4">
-          <section className="experiment-section">
-            <h2>About This Experiment</h2>
-            <p>
-              This is a naive implementation of Conway&apos;s Game of Life using WebGPU for
-              rendering. The simulation runs on the CPU while rendering uses WebGPU textures and
-              shaders.
-            </p>
-            <p>
-              This demonstrates basic WebGPU concepts: texture creation, shader programming, and
-              real-time rendering of simulation data.
-            </p>
-          </section>
-
-          <section className="experiment-section">
-            <h2>WebGPU Features Used</h2>
-            <ul>
-              <li>Texture creation and updates for grid data</li>
-              <li>Simple vertex/fragment shaders for cell rendering</li>
-              <li>Uniform buffers for color configuration</li>
-              <li>Nearest-neighbor sampling for crisp cell edges</li>
-              <li>Canvas context configuration and rendering</li>
-            </ul>
-          </section>
-
-          <section className="experiment-section">
-            <h2>Optimization Roadmap</h2>
-            <ul>
-              <li>
-                <strong>Phase 1</strong>: Move simulation to compute shaders (GPU)
-              </li>
-              <li>
-                <strong>Phase 2</strong>: Implement double buffering with storage textures
-              </li>
-              <li>
-                <strong>Phase 3</strong>: Optimize memory access patterns
-              </li>
-              <li>
-                <strong>Phase 4</strong>: Add Web Workers for CPU simulation
-              </li>
-            </ul>
-          </section>
-        </div>
-
-        <div className="experiment-actions">
-          <Link to="/" className="experiment-link">
-            ← Back to Home
-          </Link>
-        </div>
-      </div>
+      )}
+      {/* Permanent FPS counter in bottom-right corner */}
+      <div className="fps-counter">{simulationFps} FPS</div>
     </div>
   );
 };

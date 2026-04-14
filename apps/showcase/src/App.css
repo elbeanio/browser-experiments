@@ -29,6 +29,39 @@
   align-items: center;
 }
 
+/* Sub-nav bar */
+.sub-nav-bar {
+  background: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--spacing-sm) 0;
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.sub-nav-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.sub-nav-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+/* Compact header */
+.experiment-detail-header.compact {
+  margin-bottom: 0;
+  padding-bottom: var(--spacing-sm);
+}
+
+.experiment-detail-header.compact h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0;
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -310,44 +343,54 @@
 /* Game of Life specific styles */
 .game-of-life-container {
   display: grid;
-  grid-template-columns: 1fr 360px; /* left flexible, right fixed */
+  grid-template-columns: 1fr auto; /* canvas takes available space, tool strip auto width */
   gap: 28px;
   align-items: start;
-  margin-top: var(--spacing-xl);
+  position: relative;
+  min-height: calc(100vh - 200px); /* Account for header and sub-nav */
 }
 
 /* Responsive layout for smaller screens */
 @media (max-width: 1000px) {
   .game-of-life-container {
     grid-template-columns: 1fr;
+    min-height: calc(100vh - 250px); /* More space for mobile */
   }
   .game-of-life-controls {
     width: auto;
     order: 2;
   }
+
+  .sub-nav-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-md);
+  }
+
+  .sub-nav-actions {
+    justify-content: center;
+  }
 }
 
 .game-of-life-canvas-container {
-  background: var(--color-bg-card);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-lg);
+  background: var(--color-bg);
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
+  height: 100%;
   align-self: start; /* Align with controls panel top */
+  overflow: hidden;
 }
 
 .game-of-life-canvas {
   display: block;
-  border-radius: var(--radius-md);
   background: var(--color-bg);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   width: 100%;
-  height: auto;
-  max-width: 512px;
+  height: 100%;
+  object-fit: contain;
 }
 
 .game-of-life-controls {
@@ -785,11 +828,51 @@
   margin-bottom: var(--spacing-sm);
 }
 
-.slider-group.compact label {
-  font-size: 0.75rem;
+.slider-group.compact .slider-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 2px;
+}
+
+.slider-group.compact .slider-header label {
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.canvas-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.canvas-toggle input[type='checkbox'] {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.canvas-toggle label {
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin: 0;
+  opacity: 0.7;
+}
+
+.canvas-toggle label:hover {
+  opacity: 1;
+}
+
+.canvas-toggle input[type='checkbox']:checked + label {
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+.slider-hint {
+  font-size: 0.7rem;
+  color: var(--color-primary);
+  margin-top: 2px;
+  text-align: center;
 }
 
 .tool-section {
@@ -884,4 +967,258 @@
   font-size: 0.8rem;
   min-width: auto;
   height: 32px;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-lg);
+}
+
+.modal {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: var(--spacing-lg);
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+}
+
+/* Simulation info styles */
+.simulation-info {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.info-value {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.status-running {
+  color: #10b981;
+}
+
+.status-paused {
+  color: #f59e0b;
+}
+
+/* Game of Life Background Canvas Layout */
+.game-of-life-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Canvas will be absolute positioned behind everything */
+}
+
+/* The canvas IS the background */
+.game-of-life-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--color-bg);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  z-index: 0; /* BEHIND everything */
+  pointer-events: auto; /* Allow drawing on it */
+}
+
+/* UI sits on top of canvas background */
+.game-of-life-header {
+  background: rgba(30, 41, 59, 0.95);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  position: relative;
+}
+
+.header-title {
+  margin-bottom: var(--spacing-sm);
+}
+
+.header-title h1 {
+  font-size: 1.5rem;
+  margin: 0;
+  color: var(--color-primary);
+}
+
+/* Floating toolstrip */
+.game-of-life-toolstrip {
+  position: fixed;
+  top: 120px; /* Below header */
+  right: var(--spacing-lg);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: var(--spacing-md);
+  z-index: 20;
+  width: 240px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.toolstrip-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* Update existing tool styles for floating layout */
+.game-of-life-toolstrip .control-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.game-of-life-toolstrip .control-group:not(:last-child) {
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.game-of-life-toolstrip .tool-section {
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+}
+
+.game-of-life-toolstrip .compact-sliders {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1000px) {
+  .game-of-life-toolstrip {
+    position: static;
+    width: auto;
+    max-height: none;
+    margin: var(--spacing-lg);
+    top: auto;
+    right: auto;
+  }
+
+  .game-of-life-header {
+    padding: var(--spacing-sm);
+  }
+
+  .sub-nav-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+
+  .sub-nav-actions {
+    justify-content: center;
+  }
+}
+
+/* FPS Counter */
+.fps-counter {
+  position: fixed;
+  bottom: var(--spacing-md);
+  right: var(--spacing-md);
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--color-primary);
+  font-family: monospace;
+  font-size: 0.875rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  z-index: 30;
+  backdrop-filter: blur(10px);
+  min-width: 70px;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+}
+
+/* Fullscreen canvas adjustments */
+:fullscreen .game-of-life-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+:-webkit-full-screen .game-of-life-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+:-moz-full-screen .game-of-life-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+:-ms-fullscreen .game-of-life-canvas {
+  width: 100vw;
+  height: 100vh;
 }

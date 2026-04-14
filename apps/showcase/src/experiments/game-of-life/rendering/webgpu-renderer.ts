@@ -37,9 +37,11 @@ export class GameOfLifeRenderer {
     this.aliveColor = options.aliveColor || [0, 1, 0, 1]; // Green
     this.deadColor = options.deadColor || [0.1, 0.1, 0.1, 1]; // Dark gray
 
-    // Set canvas to fixed size (512×512)
-    this.canvas.width = 512;
-    this.canvas.height = 512;
+    // Set canvas to device pixel dimensions for crisp rendering
+    // CSS controls display size, but WebGPU needs actual pixel dimensions
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.floor(this.canvas.clientWidth * dpr);
+    this.canvas.height = Math.floor(this.canvas.clientHeight * dpr);
   }
 
   /**
@@ -51,6 +53,23 @@ export class GameOfLifeRenderer {
     }
 
     try {
+      // Set canvas to device pixel dimensions for crisp rendering
+      // CSS controls display size, but WebGPU needs actual pixel dimensions
+      const updateCanvasSize = () => {
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = Math.floor(this.canvas.clientWidth * dpr);
+        this.canvas.height = Math.floor(this.canvas.clientHeight * dpr);
+        // Update uniforms to recalculate tiling for new size
+        if (this.isInitialized) {
+          this.updateUniforms();
+        }
+      };
+
+      updateCanvasSize();
+
+      // Handle window resize
+      window.addEventListener('resize', updateCanvasSize);
+
       // Check WebGPU support
       if (!navigator.gpu) {
         throw new Error('WebGPU is not supported in this browser');
@@ -141,7 +160,7 @@ export class GameOfLifeRenderer {
         @fragment
         fn fragment_main(input: VertexOutput) -> @location(0) vec4f {
           // Scale UVs for zoom/tiling
-          // uv_scale = 512 / (gridSize * cellSize)  [INVERSE!]
+          // uv_scale = canvasSize / (gridSize * cellSize)  [INVERSE!]
           // If scale > 1: texture repeats (tiling, zoom OUT)
           // If scale < 1: texture is magnified (zoom IN, shows portion)
           let scaled_uv_x: f32 = input.uv.x * uniforms.uv_scale_x;
@@ -203,7 +222,7 @@ export class GameOfLifeRenderer {
       });
 
       // Write initial data to uniform buffer
-      this.updateUniformBuffer();
+      this.updateUniforms();
 
       // Create bind group layout
       const bindGroupLayout = this.device.createBindGroupLayout({
@@ -433,21 +452,21 @@ export class GameOfLifeRenderer {
   }
 
   /**
-   * Update uniform buffer with current colors and UV scale
+   * Update uniforms (colors, UV scale, highlight)
    */
-  private updateUniformBuffer(): void {
+  private updateUniforms(): void {
     if (!this.device || !this.uniformBuffer) {
       return;
     }
 
-    // Calculate UV scale for zoom/tiling
-    // Canvas is fixed at 512px
     // Grid pixel size = gridSize * cellSize
-    // UV scale = 512 / gridPixelSize (INVERSE relationship!)
+    // UV scale = canvasSize / gridPixelSize (INVERSE relationship!)
     // Larger cell size → smaller uv_scale → texture appears larger (zoom IN)
     // Smaller cell size → larger uv_scale → texture appears smaller, tiles (zoom OUT)
-    const uvScaleX = 512 / (this.width * this.cellSize);
-    const uvScaleY = 512 / (this.height * this.cellSize);
+    const canvasWidth = this.canvas.clientWidth || this.canvas.width || 512;
+    const canvasHeight = this.canvas.clientHeight || this.canvas.height || 512;
+    const uvScaleX = canvasWidth / (this.width * this.cellSize);
+    const uvScaleY = canvasHeight / (this.height * this.cellSize);
 
     const uniformData = new Float32Array([
       // alive_color: vec4f
@@ -475,7 +494,7 @@ export class GameOfLifeRenderer {
     }
 
     this.cellSize = cellSize;
-    this.updateUniformBuffer();
+    this.updateUniforms();
   }
 
   /**
@@ -485,6 +504,6 @@ export class GameOfLifeRenderer {
    */
   setHighlightEditableTile(enabled: boolean): void {
     this.highlightEditableTile = enabled;
-    this.updateUniformBuffer();
+    this.updateUniforms();
   }
 }
