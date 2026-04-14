@@ -45,6 +45,7 @@ const GameOfLifePage = () => {
     Array<{ name: string; grid: Uint8Array; width: number; height: number }>
   >([]);
   const [patternName, setPatternName] = useState('');
+  const [startingPositionGrid, setStartingPositionGrid] = useState<Uint8Array | null>(null);
   const { metrics } = usePerformanceMonitor({
     enabled: true,
     updateInterval: 1000,
@@ -231,7 +232,14 @@ const GameOfLifePage = () => {
   }, [drawMode, selectedPattern, isFullscreen]);
 
   // Control handlers
-  const handleRun = () => setIsRunning(true);
+  const handleRun = () => {
+    if (game) {
+      // Save current grid as starting position
+      const state = game.getState();
+      setStartingPositionGrid(new Uint8Array(state.grid));
+    }
+    setIsRunning(true);
+  };
   const handleStop = () => setIsRunning(false);
   const handleStep = () => {
     if (game && renderer && !isRunning) {
@@ -481,6 +489,199 @@ const GameOfLifePage = () => {
       setSavedPatterns([...savedPatterns, newPattern]);
       setPatternName('');
     }
+  };
+
+  // Save current state to PNG file
+  const handleSaveToFile = async (saveStartingPosition = false) => {
+    if (!game || !renderer) return;
+
+    try {
+      const state = game.getState();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `game-of-life-${timestamp}.png`;
+
+      // Get the current grid state (either current or starting position)
+      const gridToSave =
+        saveStartingPosition && startingPositionGrid
+          ? startingPositionGrid
+          : new Uint8Array(state.grid);
+
+      // Note: Metadata would be embedded in PNG tEXt chunks in a more complete implementation
+      // For now, we save the visual representation only
+      // Future enhancement: Add proper PNG metadata embedding
+
+      // Create canvas for PNG export
+      const canvas = document.createElement('canvas');
+      canvas.width = state.width;
+      canvas.height = state.height;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Failed to create canvas context');
+      }
+
+      // Create image data
+      const imageData = ctx.createImageData(state.width, state.height);
+      const data = imageData.data;
+
+      // Fill with black/white pixels
+      for (let i = 0; i < gridToSave.length; i++) {
+        const value = gridToSave[i] === 1 ? 255 : 0;
+        const pixelIndex = i * 4;
+        data[pixelIndex] = value; // R
+        data[pixelIndex + 1] = value; // G
+        data[pixelIndex + 2] = value; // B
+        data[pixelIndex + 3] = 255; // A (fully opaque)
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Convert to blob and add metadata
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => {
+          if (!blob) throw new Error('Failed to create blob');
+          resolve(blob);
+        }, 'image/png');
+      });
+
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      alert(`Pattern saved to ${filename}`);
+    } catch (error) {
+      console.error('Failed to save pattern:', error);
+      alert('Failed to save pattern. See console for details.');
+    }
+  };
+
+  // Load pattern from PNG file
+  const handleLoadFromFile = async () => {
+    if (!game || !renderer) return;
+
+    try {
+      // Create file input
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/png';
+
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+
+        try {
+          // Read file as data URL
+          const reader = new FileReader();
+          const imageDataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          // Create image element
+          const img = new Image();
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = reject;
+            img.src = imageDataUrl;
+          });
+
+          // Create canvas to read pixel data
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            throw new Error('Failed to create canvas context');
+          }
+
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const pixelData = imageData.data;
+
+          // Convert to grid
+          const width = img.width;
+          const height = img.height;
+          const grid = new Uint8Array(width * height);
+
+          for (let i = 0; i < grid.length; i++) {
+            const pixelIndex = i * 4;
+            // Simple threshold: if any color channel > 128, consider it alive
+            const r = pixelData[pixelIndex];
+            const g = pixelData[pixelIndex + 1];
+            const b = pixelData[pixelIndex + 2];
+            const avg = (r + g + b) / 3;
+            grid[i] = avg > 128 ? 1 : 0;
+          }
+
+          // Check if pattern matches current grid size
+          if (width !== gridSize || height !== gridSize) {
+            const resize = confirm(
+              `Pattern size (${width}x${height}) doesn't match current grid (${gridSize}x${gridSize}).\n\n` +
+                `Options:\n` +
+                `• Cancel: Keep current grid size\n` +
+                `• OK: Resize grid to ${width}x${height}`
+            );
+
+            if (resize) {
+              setGridSize(Math.max(width, height));
+              // Wait for next render cycle for grid to resize
+              setTimeout(() => {
+                if (game && renderer) {
+                  loadGridIntoGame(game, renderer, grid, width, height);
+                }
+              }, 100);
+              return;
+            } else {
+              return;
+            }
+          }
+
+          // Load pattern into current grid
+          loadGridIntoGame(game, renderer, grid, width, height);
+        } catch (error) {
+          console.error('Failed to load pattern:', error);
+          alert('Failed to load pattern. See console for details.');
+        }
+      };
+
+      input.click();
+    } catch (error) {
+      console.error('Failed to create file input:', error);
+      alert('Failed to load pattern. See console for details.');
+    }
+  };
+
+  // Helper function to load grid into game
+  const loadGridIntoGame = (
+    game: GameOfLife,
+    renderer: GameOfLifeRenderer,
+    grid: Uint8Array,
+    width: number,
+    height: number
+  ) => {
+    // Clear current grid
+    game.clear();
+
+    // Load pattern
+    for (let i = 0; i < grid.length; i++) {
+      const x = i % width;
+      const y = Math.floor(i / width);
+      game.setCell(x, y, grid[i] === 1);
+    }
+
+    renderer.updateGrid(game.getState().grid);
+    renderer.render();
+    updateStats(game);
+
+    alert(`Pattern loaded (${width}x${height})`);
   };
 
   // Load a saved pattern
@@ -1163,6 +1364,39 @@ const GameOfLifePage = () => {
                   </select>
                 </div>
               )}
+            </div>
+
+            {/* File Save/Load - Compact */}
+            <div className="control-group compact-patterns">
+              <div className="button-group compact">
+                <button
+                  className="button small"
+                  onClick={() => handleSaveToFile(false)}
+                  disabled={!isInitialized || isRunning}
+                  title="Save current state to PNG file"
+                >
+                  📁 Current
+                </button>
+                <button
+                  className="button small"
+                  onClick={() => handleSaveToFile(true)}
+                  disabled={!isInitialized || isRunning || !startingPositionGrid}
+                  title="Save starting position to PNG file"
+                >
+                  📁 Starting
+                </button>
+                <button
+                  className="button small"
+                  onClick={handleLoadFromFile}
+                  disabled={!isInitialized || isRunning}
+                  title="Load pattern from PNG file"
+                >
+                  📂 Load
+                </button>
+              </div>
+              <div className="file-hint">
+                PNG files preserve grid state. Load any image to convert to pattern.
+              </div>
             </div>
           </div>
         </div>
