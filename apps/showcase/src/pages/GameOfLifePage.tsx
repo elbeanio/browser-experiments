@@ -918,7 +918,7 @@ const GameOfLifePage = () => {
                 disabled={!isInitialized || isRunning}
                 title="Step one generation"
               >
-                ▷|
+                ⏭️
               </button>
               <button
                 className="tool-button"
@@ -926,7 +926,7 @@ const GameOfLifePage = () => {
                 disabled={!isInitialized}
                 title="Reset to initial state"
               >
-                ↻
+                🔄
               </button>
             </div>
 
