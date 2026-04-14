@@ -208,7 +208,7 @@ const GameOfLifePage = () => {
 
       // Calculate time since last step
       const deltaTime = timestamp - lastStepTimeRef.current;
-      const targetFrameTime = speed === 61 ? 0 : 1000 / speed;
+      const targetFrameTime = speed === 61 ? 1 : 1000 / speed; // 1ms minimum for max speed
 
       if (deltaTime >= targetFrameTime) {
         game.step();
@@ -219,7 +219,7 @@ const GameOfLifePage = () => {
         // Track simulation FPS (actual updates per second)
         const frameTime = timestamp - lastStepTimeRef.current;
         if (frameTime > 0) {
-          const currentFps = 1000 / frameTime;
+          const currentFps = Math.min(1000 / frameTime, 120); // Cap at 120 FPS
           simulationFpsRef.current.push(currentFps);
           
           // Keep only last 10 FPS measurements
