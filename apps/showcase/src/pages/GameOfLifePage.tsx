@@ -559,7 +559,7 @@ const GameOfLifePage = () => {
     const centerY = height / 2;
 
     switch (type) {
-      case 'uniform':
+      case 'uniform': {
         // Uniform random distribution (30% density)
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -569,8 +569,9 @@ const GameOfLifePage = () => {
           }
         }
         break;
+      }
 
-      case 'clustered':
+      case 'clustered': {
         // Clustered noise - creates clusters of cells
         const clusters = Math.floor((width * height) / 100);
         for (let i = 0; i < clusters; i++) {
@@ -591,8 +592,9 @@ const GameOfLifePage = () => {
           }
         }
         break;
+      }
 
-      case 'sparse':
+      case 'sparse': {
         // Sparse noise - very low density (10%)
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -602,8 +604,9 @@ const GameOfLifePage = () => {
           }
         }
         break;
+      }
 
-      case 'center':
+      case 'center': {
         // Center-dense noise - higher density towards center
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -620,8 +623,9 @@ const GameOfLifePage = () => {
           }
         }
         break;
+      }
 
-      case 'edges':
+      case 'edges': {
         // Edge-dense noise - higher density towards edges
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -638,6 +642,7 @@ const GameOfLifePage = () => {
           }
         }
         break;
+      }
     }
 
     renderer.updateGrid(game.getState().grid);
