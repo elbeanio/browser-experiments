@@ -580,10 +580,12 @@ export class GameOfLifeComputeRenderer {
     computePass.dispatchWorkgroups(workgroupsX, workgroupsY);
     computePass.end();
     
-    // Copy from storage texture to display texture for rendering
+    // Copy from write texture to display texture for rendering
+    // Note: compute shader reads from currentTextureIndex, writes to the other texture
+    const writeTextureIndex = (this.currentTextureIndex + 1) % 2;
     commandEncoder.copyTextureToTexture(
       {
-        texture: this.storageTextures[this.currentTextureIndex],
+        texture: this.storageTextures[writeTextureIndex],
       },
       {
         texture: this.displayTexture!,
@@ -602,7 +604,8 @@ export class GameOfLifeComputeRenderer {
   }
 
   /**
-   * Update grid from CPU data (fallback mode)
+   * Update grid from CPU data
+   * Updates display texture and storage textures (if using compute shaders)
    */
   updateGrid(grid: Uint8Array): void {
     if (!this.isInitialized || !this.device || !this.displayTexture) {
@@ -627,13 +630,36 @@ export class GameOfLifeComputeRenderer {
       }
     }
 
-    // Write grid data to texture
+    // Write grid data to display texture
     this.device.queue.writeTexture(
       { texture: this.displayTexture },
       scaledGrid.buffer,
       { bytesPerRow: this.width, rowsPerImage: this.height },
       { width: this.width, height: this.height, depthOrArrayLayers: 1 }
     );
+
+    // If using compute shaders, also update storage textures
+    if (this.supportsComputeShaders && this.useComputeShaders && this.storageTextures.length > 0) {
+      // For r8uint storage textures, we can write 0/1 values directly (no scaling needed)
+      const uintGrid = new Uint8Array(grid.length);
+      for (let y = 0; y < this.height; y++) {
+        const srcRow = y * this.width;
+        const dstRow = (this.height - 1 - y) * this.width; // Flip vertically
+        for (let x = 0; x < this.width; x++) {
+          uintGrid[dstRow + x] = grid[srcRow + x];
+        }
+      }
+      
+      // Update both storage textures for double buffering
+      for (let i = 0; i < this.storageTextures.length; i++) {
+        this.device.queue.writeTexture(
+          { texture: this.storageTextures[i] },
+          uintGrid.buffer,
+          { bytesPerRow: this.width, rowsPerImage: this.height },
+          { width: this.width, height: this.height, depthOrArrayLayers: 1 }
+        );
+      }
+    }
 
     this.generation++;
   }
@@ -652,46 +678,11 @@ export class GameOfLifeComputeRenderer {
       );
     }
 
-    if (this.supportsComputeShaders && this.useComputeShaders && this.storageTextures.length > 0) {
-      // Initialize both storage textures for GPU compute
-      this.initializeStorageTexture(grid, 0);
-      this.initializeStorageTexture(grid, 1);
-      
-      // Also update display texture
-      this.updateGrid(grid);
-    } else {
-      // Just update display texture for CPU mode
-      this.updateGrid(grid);
-    }
+    // updateGrid now handles both display and storage textures
+    this.updateGrid(grid);
   }
 
-  /**
-   * Initialize a storage texture with grid data
-   */
-  private initializeStorageTexture(grid: Uint8Array, textureIndex: number): void {
-    if (!this.device || textureIndex >= this.storageTextures.length) {
-      return;
-    }
 
-    // For r8uint texture, we can write 0/1 values directly
-    // Flip Y coordinate: texture has (0,0) at bottom-left, but grid has row 0 at top
-    const flippedGrid = new Uint8Array(grid.length);
-    for (let y = 0; y < this.height; y++) {
-      const srcRow = y * this.width;
-      const dstRow = (this.height - 1 - y) * this.width; // Flip vertically
-      for (let x = 0; x < this.width; x++) {
-        flippedGrid[dstRow + x] = grid[srcRow + x];
-      }
-    }
-
-    // Write to storage texture
-    this.device.queue.writeTexture(
-      { texture: this.storageTextures[textureIndex] },
-      flippedGrid.buffer,
-      { bytesPerRow: this.width, rowsPerImage: this.height },
-      { width: this.width, height: this.height, depthOrArrayLayers: 1 }
-    );
-  }
 
   /**
    * Render the current state to canvas
